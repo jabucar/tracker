@@ -142,6 +142,17 @@ button:active{transform:scale(.96)}
 .stp .w{min-width:64px;text-align:center;font-size:15px;font-weight:700;font-variant-numeric:tabular-nums}
 .stp .w small{display:block;font-size:10px;color:var(--mut);font-weight:600}
 .grest{padding:16px 18px;color:var(--mut);font-size:14px;border-top:.5px solid var(--line)}
+.stats-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:14px}
+.stat-card{background:linear-gradient(160deg,rgba(255,255,255,.16),rgba(255,255,255,.04));border-radius:22px;padding:16px;box-shadow:inset 0 1px 0 rgba(255,255,255,.45),inset 0 0 0 .5px rgba(255,255,255,.22)}
+.stat-card .slabel{font-size:12px;color:var(--mut);font-weight:600;text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px}
+.stat-card .sval{font-size:26px;font-weight:800;letter-spacing:-.8px;line-height:1}
+.stat-card .sval small{font-size:13px;font-weight:600;color:var(--mut)}
+.stat-card .starget{font-size:13px;color:var(--mut);margin-top:3px}
+.stat-card .sbar{height:5px;background:rgba(255,255,255,.12);border-radius:3px;overflow:hidden;margin-top:8px}
+.stat-card .sbar i{display:block;height:100%;border-radius:3px;background:var(--acc);transition:width .8s cubic-bezier(.22,1,.36,1)}
+.goals-edit{display:flex;align-items:center;justify-content:space-between;margin:2px 6px 14px}
+.goals-edit span{font-size:13px;color:var(--mut);font-weight:600}
+.goals-edit button{background:rgba(255,255,255,.1);border:0;color:var(--fg);font-size:13px;font-weight:600;border-radius:10px;padding:6px 14px}
 
 </style>
 </head>
@@ -219,7 +230,10 @@ function summary(date){
 function render(){
   bi=0;var h='';
   if(S.tab==='today'){
-    h='<div class="sub">'+fmtDate(today())+'</div><h1>Today</h1>'+summary(today());
+    var g=S.goals;
+    h='<div class="sub">'+fmtDate(today())+'</div><h1>Today</h1>';
+    h+='<div class="goals-edit"><span>Goal: '+g.c+' kcal · P '+g.p+'g · C '+g.cb+'g · F '+g.f+'g</span><button onclick="openGoals()">Edit</button></div>';
+    h+=summary(today());
     h+='<button class="fab" onclick="openSheet()">+</button>';
   }else if(S.tab==='gym'){
     h='<h1 style="margin-top:14px">Gym</h1><div class="sub" style="margin:0 0 12px">Weekly workout plan</div>';
@@ -245,10 +259,10 @@ function render(){
       if(has){var c=tot(mData[ds]).c,q=Math.min(1,c/S.goals.c);st=' style="background:color-mix(in srgb,var(--acc) '+Math.round(22+50*q)+'%,transparent)"'}
       h+='<button class="'+(ds===td?'td ':'')+(ds===S.view?'sel':'')+'"'+st+' onclick="pickDay(\''+ds+'\')">'+d+'</button>';
     }
-    h+='</div></div><div class="sec" style="margin-top:6px">'+fmtDate(S.view)+'</div>'+summary(S.view);
-    if(S.view===td)h+='';
+    h+='</div></div>';
+    h+=statsHtml();
+    h+='<div class="sec" style="margin-top:6px">'+fmtDate(S.view)+'</div>'+summary(S.view);
   }
-  if(!S.db)h+='<div class="foot">Saved on this device only</div>';
   $('app').innerHTML=h;syncTabs();
   void $('app').offsetWidth;
   $('app').querySelectorAll('i[data-w]').forEach(function(e){e.style.width=e.dataset.w+'%';S.pw[e.dataset.k]=e.dataset.w});
@@ -381,6 +395,7 @@ function editScan(){var x=S.scan.res;if(!x)return;S.pre={n:scanName(),c:x.c,p:x.
 async function loadAll(){
   var m=await load('meals');S.meals=(m&&m.list)||[];
   var g=await load('gym');S.gym=(g&&g.w)||{};
+  var gl=await load('goals');if(gl&&gl.c)S.goals=gl;
   // Always ensure the 3 base meals exist (import from image)
   var seed=[{n:'250g (pola) 0% masti jogurta',c:125,p:20.8,cb:10.3,f:0},{n:'Marenda (2 sendvica)',c:525,p:30,cb:60,f:16},{n:'Mahune i kruv',c:780,p:28,cb:85,f:38}];
   var changed=false;
@@ -388,6 +403,63 @@ async function loadAll(){
   if(changed)await save('meals',{list:S.meals});
   await loadMonth(today().slice(0,7));
   if(S.tab==='cal')await loadMonth(S.cal);
+}
+
+/* goals editor */
+function openGoals(){
+  var g=S.goals;
+  $('modal').innerHTML='<div class="ov" onclick="if(event.target===this)closeSheet()"><div class="sheet" id="sh">'+
+    '<div class="seg" style="margin-bottom:20px"><span style="flex:1;text-align:center;font-weight:700;font-size:16px">Edit Daily Goals</span></div>'+
+    '<label>Calories (kcal)</label><input type="number" inputmode="decimal" id="gc" value="'+g.c+'">'+
+    '<div class="g"><div><label>Protein (g)</label><input type="number" inputmode="decimal" id="gp" value="'+g.p+'"></div>'+
+    '<div><label>Carbs (g)</label><input type="number" inputmode="decimal" id="gcb" value="'+g.cb+'"></div></div>'+
+    '<label>Fat (g)</label><input type="number" inputmode="decimal" id="gf" value="'+g.f+'">'+
+    '<button class="btn" onclick="saveGoals()">Save Goals</button>'+
+    '<button class="btn g2" style="margin-top:8px" onclick="closeSheet()">Cancel</button>'+
+  '</div></div>';
+  S.sheet={mode:'goals'};
+}
+async function saveGoals(){
+  var c=num($('gc').value)||S.goals.c,p=num($('gp').value)||S.goals.p,cb=num($('gcb').value)||S.goals.cb,f=num($('gf').value)||S.goals.f;
+  S.goals={c:c,p:p,cb:cb,f:f};
+  await save('goals',S.goals);
+  closeSheet();render();
+}
+
+/* weekly / monthly stats for calendar tab */
+function statsHtml(){
+  var mData=S.months[S.cal]||{},g=S.goals;
+  // collect all days in month that have data
+  var allDays=Object.keys(mData);
+  var monthTotal=0,monthDays=0;
+  allDays.forEach(function(d){var t=tot(mData[d]);monthTotal+=t.c;monthDays++;});
+  // current week (Mon–Sun containing today)
+  var td=today(),tDate=new Date(td+'T12:00:00');
+  var dow=(tDate.getDay()+6)%7; // 0=Mon
+  var weekStart=new Date(tDate);weekStart.setDate(tDate.getDate()-dow);
+  var weekTotal=0,weekDays=0;
+  for(var wi=0;wi<7;wi++){
+    var wd=new Date(weekStart);wd.setDate(weekStart.getDate()+wi);
+    var wds=wd.toISOString().slice(0,10);
+    var wm=wd.getFullYear()+'-'+('0'+(wd.getMonth()+1)).slice(-2);
+    var wData=(S.months[wm]||{})[wds];
+    if(wData){weekTotal+=tot(wData).c;weekDays++;}
+  }
+  var dim=new Date(+S.cal.slice(0,4),+S.cal.slice(5,7),0).getDate();
+  var monthTarget=dim*g.c;
+  var weekTarget=7*g.c;
+  function sc(label,eaten,target){
+    var pc=Math.min(100,target?eaten/target*100:0);
+    var diff=target-eaten,over=diff<0;
+    return '<div class="stat-card">'+
+      '<div class="slabel">'+label+'</div>'+
+      '<div class="sval">'+Math.round(eaten)+'<small> kcal</small></div>'+
+      '<div class="starget">'+(over?'<span style="color:#ff6b6b">'+Math.round(Math.abs(diff))+' over</span>':'<span>'+Math.round(diff)+' left</span>')+' · target '+Math.round(target)+'</div>'+
+      '<div class="sbar"><i style="width:'+pc+'%"></i></div>'+
+    '</div>';
+  }
+  return '<div class="sec">Statistics</div>'+
+    '<div class="stats-grid">'+sc('This week',weekTotal,weekTarget)+sc('This month',monthTotal,monthTarget)+'</div>';
 }
 function blobToData(b){return new Promise(function(ok,no){var fr=new FileReader();fr.onload=function(){ok(fr.result)};fr.onerror=no;fr.readAsDataURL(b)})}
 var AISample={
