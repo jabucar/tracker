@@ -42,24 +42,6 @@
 }
 
 /* Version badge in top right corner */
-.version-badge {
-  position: fixed;
-  top: max(14px, env(safe-area-inset-top, 14px));
-  right: 16px;
-  z-index: 10;
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.5px;
-  color: #8e8e93;
-  background: rgba(28, 28, 30, 0.85);
-  border: 0.5px solid rgba(255, 255, 255, 0.12);
-  padding: 3px 9px;
-  border-radius: 999px;
-  pointer-events: none;
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-}
-
 html {
   scroll-padding-top: env(safe-area-inset-top, 0px);
   background: #000000;
@@ -297,6 +279,15 @@ h1 {
   text-align: center;
   padding: 30px 0;
   font-size: 15px;
+}
+
+.today-version {
+  text-align: center;
+  padding: 32px 0 20px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #636366;
+  letter-spacing: 0.5px;
 }
 
 /* Floating iOS Topbar & Tabbar */
@@ -767,9 +758,7 @@ input:focus, textarea:focus {
 </style>
 </head>
 <body>
-<!-- VERSION_TRACKER: v1.05 (NOTE FOR ALL AI ASSISTANTS: Bump this version number by +0.01 whenever you edit or update this application) -->
-<div class="version-badge" id="versionBadge">v1.05</div>
-
+<!-- VERSION_TRACKER: v1.07 (NOTE FOR ALL AI ASSISTANTS: Bump this version number by +0.01 whenever you edit or update this application) -->
 <div class="wrap" id="app"></div>
 <div class="topbar" id="topbar"><span id="tbt">Today</span></div>
 <div class="tabs" id="tabs"><i class="pill" id="pill"></i><button id="tb-today" onclick="setTab('today')"><svg viewBox="0 0 24 24"><path d="M8.5 14.5A2.5 2.5 0 0 0 11 17c1.38 0 2.5-1.12 2.5-2.5 0-1.99-.99-3-1.5-4-.5 1-1.5 1.5-2 1.5-.83 0-1.5-.67-1.5-1.5 0-1.5 1.5-3 2.5-4C8.5 8 5 11 5 15a7 7 0 1 0 14 0c0-5.25-4.5-9-6.5-12.5-1.5 3.5-4 8-4 12z"/></svg>Today</button><button id="tb-cal" onclick="setTab('cal')"><svg viewBox="0 0 24 24"><rect width="18" height="18" x="3" y="4" rx="3"/><path d="M3 10h18"/><path d="M8 2v4"/><path d="M16 2v4"/></svg>Calendar</button><button id="tb-gym" onclick="setTab('gym')"><svg viewBox="0 0 24 24"><path d="m6.5 6.5 11 11"/><path d="m21 21-1-1a2 2 0 0 0-2.83 0l-1.17 1.17a2 2 0 0 1-2.83 0l-3.17-3.17a2 2 0 0 1 0-2.83l1.17-1.17a2 2 0 0 0 0-2.83L11 8"/><path d="m3 3 1 1a2 2 0 0 0 2.83 0l1.17-1.17a2 2 0 0 1 2.83 0l3.17 3.17a2 2 0 0 1 0 2.83l-1.17 1.17a2 2 0 0 0 0 2.83L13 16"/></svg>Gym</button></div>
@@ -848,6 +837,7 @@ function render(){
     h='<div class="sub">'+fmtDate(today())+'</div><h1>Today</h1>';
     h+='<div class="goals-edit"><span>Goal: '+g.c+' kcal · P '+g.p+'g · C '+g.cb+'g · F '+g.f+'g</span><button onclick="openGoals()">Edit</button></div>';
     h+=summary(today());
+    h+='<div class="today-version">Tracker v1.07</div>';
     h+='<button class="fab" onclick="openSheet()" aria-label="Add meal"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></button>';
   }else if(S.tab==='gym'){
     h='<h1 style="margin-top:14px">Gym</h1><div class="sub" style="margin:0 0 12px">Weekly workout plan</div>';
@@ -874,6 +864,7 @@ function render(){
       h+='<button class="'+(ds===td?'td ':'')+(ds===S.view?'sel':'')+'"'+st+' onclick="pickDay(\''+ds+'\')">'+d+'</button>';
     }
     h+='</div></div>';
+    h+=calorieChartHtml();
     h+=statsHtml();
     h+='<div class="sec" style="margin-top:6px">'+fmtDate(S.view)+'</div>'+summary(S.view);
   }
@@ -1015,6 +1006,27 @@ async function loadAll(){
   var changed=false;
   seed.forEach(function(s){if(!S.meals.some(function(e){return e.n===s.n})){S.meals.push(Object.assign({id:uid()},s));changed=true;}});
   if(changed)await save('meals',{list:S.meals});
+// Ensure seed calorie records for 1.10 - 4.10
+  var octMonth = '2026-10';
+  if (!S.months[octMonth]) await loadMonth(octMonth);
+  var mDays = S.months[octMonth] || {};
+  var seedEntries = [
+    { d: '2026-10-01', c: 2000, n: 'Calorie intake 1.10' },
+    { d: '2026-10-02', c: 3000, n: 'Calorie intake 2.10' },
+    { d: '2026-10-03', c: 3000, n: 'Calorie intake 3.10' },
+    { d: '2026-10-04', c: 3000, n: 'Calorie intake 4.10' }
+  ];
+  var mChanged = false;
+  seedEntries.forEach(function(se){
+    if (!mDays[se.d] || !mDays[se.d].length) {
+      mDays[se.d] = [{ id: 'seed_' + se.d, n: se.n, c: se.c, p: Math.round(se.c * 0.05), cb: Math.round(se.c * 0.1), f: Math.round(se.c * 0.02) }];
+      mChanged = true;
+    }
+  });
+  if (mChanged) {
+    S.months[octMonth] = mDays;
+    await save('m_' + octMonth, { days: mDays });
+  }
   await loadMonth(today().slice(0,7));
   if(S.tab==='cal')await loadMonth(S.cal);
 }
@@ -1042,6 +1054,80 @@ async function saveGoals(){
 
 /* weekly / monthly stats for calendar tab */
 /* weekly / monthly stats for calendar tab */
+function calorieChartHtml(){
+  var mData = S.months[S.cal] || {}, g = S.goals;
+  var y = +S.cal.slice(0, 4), mo = +S.cal.slice(5, 7);
+  var dim = new Date(y, mo, 0).getDate();
+  var days = [];
+  var maxC = Math.max(g.c * 1.25, 3400);
+  var totalC = 0, loggedDays = 0;
+  
+  for (var d = 1; d <= dim; d++) {
+    var ds = S.cal + '-' + (d < 10 ? '0' : '') + d;
+    var list = mData[ds] || [];
+    var cal = list.length ? tot(list).c : 0;
+    if (cal > 0) {
+      totalC += cal;
+      loggedDays++;
+      if (cal * 1.15 > maxC) maxC = cal * 1.15;
+    }
+    days.push({ day: d, date: ds, cal: cal });
+  }
+  
+  var avg = loggedDays ? Math.round(totalC / loggedDays) : 0;
+  var svgW = Math.max(340, dim * 13 + 44);
+  var svgH = 150;
+  var padL = 34, padR = 12, padT = 18, padB = 24;
+  var chartW = svgW - padL - padR;
+  var chartH = svgH - padT - padB;
+  
+  var goalY = padT + chartH * (1 - (g.c / maxC));
+  var barW = Math.max(6, Math.floor(chartW / dim) - 3);
+  var barsSvg = '';
+  
+  days.forEach(function(item, idx){
+    var x = padL + idx * (chartW / dim) + (chartW / dim - barW) / 2;
+    var bh = (item.cal / maxC) * chartH;
+    var yPos = padT + chartH - bh;
+    var isSel = item.date === S.view;
+    var isToday = item.date === today();
+    var col = item.cal === 0 ? 'rgba(255,255,255,0.06)' : (item.cal > g.c ? '#ffd60a' : 'var(--acc)');
+    if (isSel) col = '#ffffff';
+    
+    barsSvg += '<g class="cbar" onclick="pickDay(\'' + item.date + '\')" style="cursor:pointer">';
+    if (item.cal > 0) {
+      barsSvg += '<rect x="' + x.toFixed(1) + '" y="' + yPos.toFixed(1) + '" width="' + barW + '" height="' + Math.max(3, bh).toFixed(1) + '" rx="3" fill="' + col + '" />';
+    } else {
+      barsSvg += '<rect x="' + x.toFixed(1) + '" y="' + (padT + chartH - 2) + '" width="' + barW + '" height="2" rx="1" fill="rgba(255,255,255,0.12)" />';
+    }
+    if (dim <= 15 || item.day % 5 === 1 || item.day === dim || isSel || isToday) {
+      barsSvg += '<text x="' + (x + barW/2).toFixed(1) + '" y="' + (svgH - 6) + '" font-size="9" font-weight="' + (isSel||isToday?'700':'500') + '" fill="' + (isSel?'#fff':isToday?'var(--acc)':'#8e8e93') + '" text-anchor="middle">' + item.day + '</text>';
+    }
+    barsSvg += '</g>';
+  });
+  
+  return '<div class="card" style="margin-top:14px;padding:16px 14px 12px">' +
+    '<div style="display:flex;justify-content:space-between;align-items:flex-end;margin-bottom:12px">' +
+      '<div>' +
+        '<div style="font-size:12px;font-weight:700;color:var(--mut);text-transform:uppercase;letter-spacing:0.5px">2D Calorie Intake</div>' +
+        '<div style="font-size:22px;font-weight:800;color:#fff;margin-top:2px">' + avg + ' <small style="font-size:13px;font-weight:600;color:var(--mut)">avg kcal/day</small></div>' +
+      '</div>' +
+      '<div style="text-align:right;font-size:12px;color:var(--mut);font-weight:600">' +
+        '<div>Goal: <b style="color:#fff">' + g.c + '</b> kcal</div>' +
+        '<div style="color:var(--acc);margin-top:2px">' + loggedDays + ' / ' + dim + ' days</div>' +
+      '</div>' +
+    '</div>' +
+    '<div style="overflow-x:auto;-webkit-overflow-scrolling:touch">' +
+      '<svg width="' + svgW + '" height="' + svgH + '" viewBox="0 0 ' + svgW + ' ' + svgH + '" style="display:block">' +
+        '<line x1="' + padL + '" y1="' + goalY.toFixed(1) + '" x2="' + (svgW - padR) + '" y2="' + goalY.toFixed(1) + '" stroke="rgba(255,255,255,0.22)" stroke-dasharray="3 3" stroke-width="1"/>' +
+        '<text x="' + (padL - 4) + '" y="' + (goalY + 3).toFixed(1) + '" font-size="9" font-weight="600" fill="rgba(255,255,255,0.45)" text-anchor="end">' + g.c + '</text>' +
+        '<line x1="' + padL + '" y1="' + (padT + chartH) + '" x2="' + (svgW - padR) + '" y2="' + (padT + chartH) + '" stroke="rgba(255,255,255,0.12)" stroke-width="1"/>' +
+        barsSvg +
+      '</svg>' +
+    '</div>' +
+  '</div>';
+}
+
 function statsHtml(){
   var mData = S.months[S.cal] || {}, g = S.goals;
   var td = today(), tDate = new Date(td + 'T12:00:00');
@@ -1116,7 +1202,7 @@ var last=today();
 setInterval(function(){var t=today();if(t!==last){last=t;S.view=t;S.cal=t.slice(0,7);loadAll().then(function(){if(!S.sheet)render()})}},20000);
 document.addEventListener('visibilitychange',function(){if(!document.hidden){var t=today();last=t;loadAll().then(function(){if(!S.sheet)render()})}});
 /* Auto-update checker: detektira noviju verziju na Vercelu i osvjezava PWA */
-var CURRENT_VERSION = 'v1.05';
+var CURRENT_VERSION = 'v1.07';
 async function checkForAppUpdates(){
   try {
     var res = await fetch('/macros.html?_check=' + Date.now(), { cache: 'no-store' });
