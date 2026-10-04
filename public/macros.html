@@ -758,7 +758,7 @@ input:focus, textarea:focus {
 </style>
 </head>
 <body>
-<!-- VERSION_TRACKER: v1.08 (NOTE FOR ALL AI ASSISTANTS: Bump this version number by +0.01 whenever you edit or update this application) -->
+<!-- VERSION_TRACKER: v1.10 (NOTE FOR ALL AI ASSISTANTS: Bump this version number by +0.01 whenever you edit or update this application) -->
 <div class="wrap" id="app"></div>
 <div class="topbar" id="topbar"><span id="tbt">Today</span></div>
 <div class="tabs" id="tabs"><i class="pill" id="pill"></i><button id="tb-today" onclick="setTab('today')"><svg viewBox="0 0 24 24"><path d="M8.5 14.5A2.5 2.5 0 0 0 11 17c1.38 0 2.5-1.12 2.5-2.5 0-1.99-.99-3-1.5-4-.5 1-1.5 1.5-2 1.5-.83 0-1.5-.67-1.5-1.5 0-1.5 1.5-3 2.5-4C8.5 8 5 11 5 15a7 7 0 1 0 14 0c0-5.25-4.5-9-6.5-12.5-1.5 3.5-4 8-4 12z"/></svg>Today</button><button id="tb-cal" onclick="setTab('cal')"><svg viewBox="0 0 24 24"><rect width="18" height="18" x="3" y="4" rx="3"/><path d="M3 10h18"/><path d="M8 2v4"/><path d="M16 2v4"/></svg>Calendar</button><button id="tb-gym" onclick="setTab('gym')"><svg viewBox="0 0 24 24"><path d="m6.5 6.5 11 11"/><path d="m21 21-1-1a2 2 0 0 0-2.83 0l-1.17 1.17a2 2 0 0 1-2.83 0l-3.17-3.17a2 2 0 0 1 0-2.83l1.17-1.17a2 2 0 0 0 0-2.83L11 8"/><path d="m3 3 1 1a2 2 0 0 0 2.83 0l1.17-1.17a2 2 0 0 1 2.83 0l3.17 3.17a2 2 0 0 1 0 2.83l-1.17 1.17a2 2 0 0 0 0 2.83L13 16"/></svg>Gym</button></div>
@@ -767,7 +767,7 @@ input:focus, textarea:focus {
 var GOAL={c:2000,p:100,cb:275,f:56};
 var TZ='Europe/Zagreb';
 function today(){return new Intl.DateTimeFormat('en-CA',{timeZone:TZ}).format(new Date())}
-var S={pw:{},sample:null,lim:null,pre:null,scan:{blob:null,url:'',txt:'',busy:false,res:null,err:'',ctl:null},tab:'today',view:today(),cal:today().slice(0,7),months:{},meals:[],goals:GOAL,sheet:null,db:null,uid:null,gym:{},gymOpen:{}};
+var S={pw:{},sample:null,lim:null,pre:null,scan:{blob:null,url:'',txt:'',busy:false,res:null,err:'',ctl:null},tab:'today',view:today(),cal:today().slice(0,7),months:{},meals:[],goals:GOAL,sheet:null,db:null,uid:null,gym:{},gymOpen:{},includeBurned:true};
 var GYM=[
  {d:'Monday',t:'Push',ex:[['Incline bench press','2 × 8',10],['Chest press','2 × 8-12',50],['Chest flies','2 × 8',15],['Shoulder press','2 × 8',22.5],['Lateral raise','2 × 8',10],['Reverse pec deck (one arm)','2 × failure',10],['Triceps pushdown','2 × 8',40],['Jam press (smith)','2 × failure',10],['Single arm triceps pushdown','2 × failure',25]]},
  {d:'Tuesday',t:'Pull',ex:[['Lat pulldown','2 × 8',55],['Close grip row (one arm)','2 × 8',45],['Kelson shrug','2 × failure',20],['Preacher curl','2 × 8',7.5],['Hammer curl','2 × failure',10],['V-ups','3 × 15',null],['Twisted leg raises','3 × 10-15',null]]},
@@ -820,28 +820,39 @@ function entryHtml(list,date){
   if(!list.length)return '<div class="empty">Nothing logged yet</div>';
   return list.map(function(e,i){return '<div class="item"><div class="t"><div>'+esc(e.n)+'</div><div>'+r(e.c)+' kcal · P '+e.p+' · C '+e.cb+' · F '+e.f+'</div></div><button class="x" onclick="delEntry(\''+date+'\','+i+')">✕</button></div>'}).join('');
 }
+function getBurned(date){
+  var act = S.activity && S.activity[date];
+  if(!act) return 0;
+  var v = (act.cal != null) ? act.cal : (typeof act === 'number' ? act : 0);
+  if(v > 15000) v = Math.round(v / 100);
+  return Math.round(v);
+}
+function toggleBurnedCal(){
+  S.includeBurned = !S.includeBurned;
+  render();
+}
 function summary(date){
   var list=dayList(date),t=tot(list),g=S.goals,left=g.c-t.c,C=439.8,over=left<0,pc=Math.min(100,t.c/g.c*100),k='r'+(bi++);
   var st=S.pw[k]!=null?S.pw[k]:C;
   var ringSvg='<svg class="ring" viewBox="0 0 176 176"><circle class="rt" cx="88" cy="88" r="70"/><circle class="rp" data-k="'+k+'" data-o="'+(C*(1-pc/100))+'" cx="88" cy="88" r="70" transform="rotate(-90 88 88)" stroke-dasharray="'+C+'" style="stroke-dashoffset:'+st+';stroke:'+(over?'#ff453a':'var(--acc)')+'"/></svg>';
   function mc(n,v,goal,col){return '<div class="mc"><div class="n"><i style="background:'+col+'"></i>'+n+'</div><div class="v">'+r(v)+'<small> / '+goal+'g</small></div>'+barI(Math.min(100,goal?v/goal*100:0),col)+'</div>'}
-  return '<div class="card hero"><div class="ringw">'+ringSvg+'<div class="rc"><div class="big">'+r(Math.abs(left))+'</div><div class="lb">kcal '+(over?'over':'left')+'</div></div></div>'+
-    '<div class="eg"><span>Eaten <b>'+r(t.c)+'</b></span><span>Goal <b>'+g.c+'</b></span></div>'+
+  var burned = getBurned(date);
+  var burnedGoal = 600; // Apple Fitness standard active kcal target
+  var bPc = Math.min(100, burned ? (burned / burnedGoal * 100) : 0);
+  var bk = 'rb' + (bi++);
+  var bst = S.pw[bk] != null ? S.pw[bk] : C;
+  var burnedSvg = '<svg class="ring" viewBox="0 0 176 176"><circle class="rt" cx="88" cy="88" r="70"/><circle class="rp" data-k="'+bk+'" data-o="'+(C*(1-bPc/100))+'" cx="88" cy="88" r="70" transform="rotate(-90 88 88)" stroke-dasharray="'+C+'" style="stroke-dashoffset:'+bst+';stroke:#fa114f"/></svg>';
+
+  var ringsHtml = '<div style="display:flex;align-items:center;justify-content:center;gap:18px;margin:8px 0 16px">'+
+    '<div class="ringw" style="width:130px;height:130px;margin:0">'+ringSvg+'<div class="rc"><div class="big" style="font-size:30px">'+r(Math.abs(left))+'</div><div class="lb" style="font-size:10px">kcal '+(over?'over':'left')+'</div></div></div>'+
+    '<div class="ringw" style="width:130px;height:130px;margin:0">'+burnedSvg+'<div class="rc"><div class="big" style="font-size:30px;color:#fa114f">'+r(burned)+'</div><div class="lb" style="font-size:10px;color:#fa114f">kcal spent</div></div></div>'+
+  '</div>';
+
+  var netCalories = r(t.c - burned);
+  return '<div class="card hero">'+ringsHtml+
+    '<div class="eg" style="gap:20px;font-size:12px;margin-bottom:14px"><span>Eaten <b>'+r(t.c)+'</b></span><span>Burned <b style="color:#fa114f">'+r(burned)+'</b></span><span>Net <b style="color:'+(netCalories<=g.c?'var(--acc)':'#ff453a')+'">'+netCalories+'</b></span><span>Goal <b>'+g.c+'</b></span></div>'+
     '<div class="macros">'+mc('Protein',t.p,g.p,'var(--p)')+mc('Carbs',t.cb,g.cb,'var(--c)')+mc('Fat',t.f,g.f,'var(--f)')+'</div></div>'+
-    (function(){
-      var actDay=S.activity&&S.activity[date];
-      var b=(actDay&&actDay.cal!=null)?actDay.cal:null;
-      return '<div class="card" style="margin-top:10px;padding:12px 14px;display:flex;align-items:center;justify-content:space-between;background:var(--card);border:1px solid var(--line);border-radius:14px">'+
-        '<div style="display:flex;align-items:center;gap:10px">'+
-          '<div style="width:34px;height:34px;border-radius:9px;background:rgba(255,69,58,0.15);display:flex;align-items:center;justify-content:center;font-size:16px">🔥</div>'+
-          '<div>'+
-            '<div style="font-size:11px;font-weight:600;color:var(--mut);text-transform:uppercase;letter-spacing:0.5px">Active Energy</div>'+
-            '<div style="font-size:16px;font-weight:700;color:#fff">'+(b!=null?r(b)+' <span style="font-size:12px;font-weight:500;color:var(--mut)">kcal burned</span>':'<span style="font-size:13px;font-weight:500;color:var(--mut)">Waiting for sync</span>')+'</div>'+
-          '</div>'+
-        '</div>'+
-        (b!=null?'<div style="text-align:right"><div style="font-size:11px;font-weight:600;color:var(--mut);text-transform:uppercase;letter-spacing:0.5px">Net Intake</div><div style="font-size:16px;font-weight:700;color:'+(t.c-b<=g.c?'var(--acc)':'#ff453a')+'">'+r(t.c-b)+' <span style="font-size:11px;font-weight:500;color:var(--mut)">kcal</span></div></div>':'')+
-      '</div>';
-    })()+
+
     '<div class="sec">Meals</div><div class="card list">'+entryHtml(list,date)+'</div>';
 }
 function render(){
@@ -851,7 +862,7 @@ function render(){
     h='<div class="sub">'+fmtDate(today())+'</div><h1>Today</h1>';
     h+='<div class="goals-edit"><span>Goal: '+g.c+' kcal · P '+g.p+'g · C '+g.cb+'g · F '+g.f+'g</span><button onclick="openGoals()">Edit</button></div>';
     h+=summary(today());
-    h+='<div class="today-version">Tracker v1.09</div>';
+    h+='<div class="today-version">Tracker v1.10</div>';
     h+='<button class="fab" onclick="openSheet()" aria-label="Add meal"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></button>';
   }else if(S.tab==='gym'){
     h='<h1 style="margin-top:14px">Gym</h1><div class="sub" style="margin:0 0 12px">Weekly workout plan</div>';
@@ -869,12 +880,15 @@ function render(){
   }else{
     var y=+S.cal.slice(0,4),mo=+S.cal.slice(5,7),first=new Date(y,mo-1,1),dim=new Date(y,mo,0).getDate();
     var off=(first.getDay()+6)%7,mData=S.months[S.cal]||{},td=today();
-    h='<h1 style="margin-top:14px">Calendar</h1><div class="card"><div class="nav"><button onclick="moveMonth(-1)">‹</button><b>'+first.toLocaleDateString('en-GB',{month:'long',year:'numeric'})+'</b><button onclick="moveMonth(1)">›</button></div><div class="cal">';
+    var burnActive = !!S.includeBurned;
+    h='<div style="display:flex;justify-content:space-between;align-items:center;margin-top:14px;margin-bottom:12px"><h1 style="margin:0">Calendar</h1><button onclick="toggleBurnedCal()" style="background:'+(burnActive?'rgba(250,17,79,0.18)':'#2c2c2e')+';border:1px solid '+(burnActive?'#fa114f':'var(--line)')+';color:'+(burnActive?'#ff453a':'var(--mut)')+';border-radius:20px;padding:6px 12px;font-size:12px;font-weight:700;cursor:pointer;display:flex;align-items:center;gap:6px">🔥 Burned: '+(burnActive?'ON (Net)':'OFF (Food)')+'</button></div><div class="card">'<div class="nav"><button onclick="moveMonth(-1)">‹</button><b>'+first.toLocaleDateString('en-GB',{month:'long',year:'numeric'})+'</b><button onclick="moveMonth(1)">›</button></div><div class="cal">';
     ['M','T','W','T','F','S','S'].forEach(function(d){h+='<div class="h">'+d+'</div>'});
     for(var i=0;i<off;i++)h+='<button class="no" disabled></button>';
     for(var d=1;d<=dim;d++){
       var ds=S.cal+'-'+(d<10?'0':'')+d,has=mData[ds]&&mData[ds].length,st='';
-      if(has){var c=tot(mData[ds]).c,q=Math.min(1,c/S.goals.c);st=' style="background:color-mix(in srgb,var(--acc) '+Math.round(22+50*q)+'%,transparent)"'}
+      if(has){var c=tot(mData[ds]).c;
+      if(S.includeBurned){ c = Math.max(0, c - getBurned(ds)); }
+      var q=Math.min(1,c/S.goals.c);st=' style="background:color-mix(in srgb,var(--acc) '+Math.round(22+50*q)+'%,transparent)"'}
       h+='<button class="'+(ds===td?'td ':'')+(ds===S.view?'sel':'')+'"'+st+' onclick="pickDay(\''+ds+'\')">'+d+'</button>';
     }
     h+='</div></div>';
@@ -1267,7 +1281,7 @@ var last=today();
 setInterval(function(){var t=today();if(t!==last){last=t;S.view=t;S.cal=t.slice(0,7);loadAll().then(function(){if(!S.sheet)render()})}},20000);
 document.addEventListener('visibilitychange',function(){if(!document.hidden){var t=today();last=t;loadAll().then(function(){if(!S.sheet)render()})}});
 /* Auto-update checker: detektira noviju verziju na Vercelu i osvjezava PWA */
-var CURRENT_VERSION = 'v1.09';
+var CURRENT_VERSION = 'v1.10';
 async function checkForAppUpdates(){
   try {
     var res = await fetch('/macros.html?_check=' + Date.now(), { cache: 'no-store' });
