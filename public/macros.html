@@ -828,6 +828,20 @@ function summary(date){
   return '<div class="card hero"><div class="ringw">'+ringSvg+'<div class="rc"><div class="big">'+r(Math.abs(left))+'</div><div class="lb">kcal '+(over?'over':'left')+'</div></div></div>'+
     '<div class="eg"><span>Eaten <b>'+r(t.c)+'</b></span><span>Goal <b>'+g.c+'</b></span></div>'+
     '<div class="macros">'+mc('Protein',t.p,g.p,'var(--p)')+mc('Carbs',t.cb,g.cb,'var(--c)')+mc('Fat',t.f,g.f,'var(--f)')+'</div></div>'+
+    (function(){
+      var actDay=S.activity&&S.activity[date];
+      var b=(actDay&&actDay.cal!=null)?actDay.cal:null;
+      return '<div class="card" style="margin-top:10px;padding:12px 14px;display:flex;align-items:center;justify-content:space-between;background:var(--card);border:1px solid var(--line);border-radius:14px">'+
+        '<div style="display:flex;align-items:center;gap:10px">'+
+          '<div style="width:34px;height:34px;border-radius:9px;background:rgba(255,69,58,0.15);display:flex;align-items:center;justify-content:center;font-size:16px">🔥</div>'+
+          '<div>'+
+            '<div style="font-size:11px;font-weight:600;color:var(--mut);text-transform:uppercase;letter-spacing:0.5px">Active Energy</div>'+
+            '<div style="font-size:16px;font-weight:700;color:#fff">'+(b!=null?r(b)+' <span style="font-size:12px;font-weight:500;color:var(--mut)">kcal burned</span>':'<span style="font-size:13px;font-weight:500;color:var(--mut)">Waiting for sync</span>')+'</div>'+
+          '</div>'+
+        '</div>'+
+        (b!=null?'<div style="text-align:right"><div style="font-size:11px;font-weight:600;color:var(--mut);text-transform:uppercase;letter-spacing:0.5px">Net Intake</div><div style="font-size:16px;font-weight:700;color:'+(t.c-b<=g.c?'var(--acc)':'#ff453a')+'">'+r(t.c-b)+' <span style="font-size:11px;font-weight:500;color:var(--mut)">kcal</span></div></div>':'')+
+      '</div>';
+    })()+
     '<div class="sec">Meals</div><div class="card list">'+entryHtml(list,date)+'</div>';
 }
 function render(){
@@ -837,7 +851,7 @@ function render(){
     h='<div class="sub">'+fmtDate(today())+'</div><h1>Today</h1>';
     h+='<div class="goals-edit"><span>Goal: '+g.c+' kcal · P '+g.p+'g · C '+g.cb+'g · F '+g.f+'g</span><button onclick="openGoals()">Edit</button></div>';
     h+=summary(today());
-    h+='<div class="today-version">Tracker v1.08</div>';
+    h+='<div class="today-version">Tracker v1.09</div>';
     h+='<button class="fab" onclick="openSheet()" aria-label="Add meal"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></button>';
   }else if(S.tab==='gym'){
     h='<h1 style="margin-top:14px">Gym</h1><div class="sub" style="margin:0 0 12px">Weekly workout plan</div>';
@@ -1001,6 +1015,7 @@ async function loadAll(){
   var m=await load('meals');S.meals=(m&&m.list)||[];
   var g=await load('gym');S.gym=(g&&g.w)||{};
   var gl=await load('goals');if(gl&&gl.c)S.goals=gl;
+  var act=await load('steps');S.activity=(act&&act.days)||{};
   // Always ensure the 3 base meals exist (import from image)
   var seed=[{n:'250g (pola) 0% masti jogurta',c:125,p:20.8,cb:10.3,f:0},{n:'Marenda (2 sendvica)',c:525,p:30,cb:60,f:16},{n:'Mahune i kruv',c:780,p:28,cb:85,f:38}];
   var changed=false;
@@ -1252,7 +1267,7 @@ var last=today();
 setInterval(function(){var t=today();if(t!==last){last=t;S.view=t;S.cal=t.slice(0,7);loadAll().then(function(){if(!S.sheet)render()})}},20000);
 document.addEventListener('visibilitychange',function(){if(!document.hidden){var t=today();last=t;loadAll().then(function(){if(!S.sheet)render()})}});
 /* Auto-update checker: detektira noviju verziju na Vercelu i osvjezava PWA */
-var CURRENT_VERSION = 'v1.08';
+var CURRENT_VERSION = 'v1.09';
 async function checkForAppUpdates(){
   try {
     var res = await fetch('/macros.html?_check=' + Date.now(), { cache: 'no-store' });
