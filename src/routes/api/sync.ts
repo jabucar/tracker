@@ -13,11 +13,22 @@ async function gistHeaders() {
 }
 
 function extractNumber(val: unknown): number {
-  if (typeof val === "number") return Math.round(val);
+  if (typeof val === "number") {
+    if (val > 15000) return Math.round(val / 100);
+    return Math.round(val);
+  }
   if (typeof val === "string") {
-    const clean = val.replace(/,/g, "").replace(/[^0-9.-]/g, "");
+    let clean = val.trim();
+    if (clean.includes(",") && !clean.includes(".")) {
+      clean = clean.replace(",", ".");
+    } else {
+      clean = clean.replace(/,/g, "");
+    }
+    clean = clean.replace(/[^0-9.-]/g, "");
     const parsed = parseFloat(clean);
-    return isNaN(parsed) ? 0 : Math.round(parsed);
+    if (isNaN(parsed)) return 0;
+    if (parsed > 15000) return Math.round(parsed / 100);
+    return Math.round(parsed);
   }
   if (Array.isArray(val)) {
     return val.reduce((acc: number, item: unknown) => acc + extractNumber(item), 0);
