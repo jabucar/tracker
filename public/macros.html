@@ -9,12 +9,36 @@
 <meta name="apple-mobile-web-app-title" content="Macros">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="theme-color" content="#1b1622">
+ <!-- Dodaj ove meta tagove za sprječavanje starog cachea na iOS-u -->
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
+<meta http-equiv="Expires" content="0">
+ 
 <link rel="apple-touch-icon" href="/apple-touch-icon.png">
 <link rel="icon" type="image/png" href="/favicon.png">
 <style>
 :root{--bg:#f2f2f7;--fg:#000;--mut:#6c6c70;--card:rgba(255,255,255,.74);--line:rgba(60,60,67,.14);--fill:rgba(120,120,128,.12);--acc:#34c759;--p:#ff375f;--c:#0a84ff;--f:#ff9f0a;--spec:rgba(255,255,255,.9);--edge:rgba(0,0,0,.07);--glass:rgba(255,255,255,.55);--glassb:rgba(255,255,255,.7);--pill:rgba(255,255,255,.95);--sheet:rgba(246,246,250,.86);--glow:rgba(52,199,89,.2);--glow2:rgba(10,132,255,.14);box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
 @media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#000;--fg:#fff;--mut:#98989f;--card:rgba(44,44,46,.62);--line:rgba(84,84,88,.5);--fill:rgba(118,118,128,.24);--acc:#30d158;--spec:rgba(255,255,255,.14);--edge:rgba(0,0,0,.5);--glass:rgba(58,58,62,.5);--glassb:rgba(255,255,255,.16);--pill:rgba(120,120,128,.5);--sheet:rgba(28,28,30,.86);--glow:rgba(48,209,88,.22);--glow2:rgba(10,132,255,.2)}}
 :root[data-theme="dark"]{--bg:#000;--fg:#fff;--mut:#98989f;--card:rgba(44,44,46,.62);--line:rgba(84,84,88,.5);--fill:rgba(118,118,128,.24);--acc:#30d158;--spec:rgba(255,255,255,.14);--edge:rgba(0,0,0,.5);--glass:rgba(58,58,62,.5);--glassb:rgba(255,255,255,.16);--pill:rgba(120,120,128,.5);--sheet:rgba(28,28,30,.86);--glow:rgba(48,209,88,.22);--glow2:rgba(10,132,255,.2)}
+ /* Version badge u gornjem desnom kutu */
+ .version-badge {
+  position: fixed;
+  top: max(14px, env(safe-area-inset-top, 14px));
+  right: 16px;
+  z-index: 10;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  color: rgba(255, 255, 255, 0.7);
+  background: rgba(255, 255, 255, 0.12);
+  border: 0.5px solid rgba(255, 255, 255, 0.2);
+  padding: 3px 8px;
+  border-radius: 999px;
+  pointer-events: none;
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+}
+
 html{scroll-padding-top:env(safe-area-inset-top,0px);background:var(--bg)}
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 body{margin:0;background:transparent;color:var(--fg);font-family:-apple-system,BlinkMacSystemFont,"SF Pro Display","Segoe UI",Roboto,sans-serif;padding-bottom:120px;font-variant-numeric:tabular-nums;-webkit-font-smoothing:antialiased}
@@ -157,6 +181,12 @@ button:active{transform:scale(.96)}
 </style>
 </head>
 <body>
+<!-- VERSION_TRACKER: v1.04 (NOTE FOR ALL AI ASSISTANTS: Bump this version number by +0.01 whenever you edit or update this application) -->
+<div class="version-badge" id="versionBadge">v1.04</div>
+
+<div class="wrap" id="app"></div>
+...
+
 <div class="wrap" id="app"></div>
 <div class="topbar" id="topbar"><span id="tbt">Today</span></div>
 <div class="tabs" id="tabs"><i class="pill" id="pill"></i><button id="tb-today" onclick="setTab('today')"><svg viewBox="0 0 24 24"><path d="M12 3c3.2 4.2 6 6.6 6 10.2A6 6 0 0 1 6 13.2C6 9.600 8.800 7.200 12 3z"/></svg>Today</button><button id="tb-cal" onclick="setTab('cal')"><svg viewBox="0 0 24 24"><rect x="3.500" y="5" width="17" height="15.500" rx="3.500"/><path d="M3.500 10h17M8 3v4M16 3v4"/></svg>Calendar</button><button id="tb-gym" onclick="setTab('gym')"><svg viewBox="0 0 24 24"><path d="M6.5 6.5v11M17.5 6.5v11M3.5 9v6M20.5 9v6M6.5 12h11"/></svg>Gym</button></div>
@@ -212,6 +242,7 @@ function bar(label,val,goal,color,unit){
   return '<div class="row"><b>'+label+'</b><span>'+r(val)+' / '+goal+unit+'</span></div>'+barI(pc,color)+'';
 }
 function fmtDate(d){return new Date(d+'T12:00:00').toLocaleDateString('en-GB',{weekday:'long',day:'numeric',month:'long'})}
+ 
 
 function entryHtml(list,date){
   if(!list.length)return '<div class="empty">Nothing logged yet</div>';
@@ -427,40 +458,55 @@ async function saveGoals(){
 }
 
 /* weekly / monthly stats for calendar tab */
+/* weekly / monthly stats for calendar tab */
 function statsHtml(){
-  var mData=S.months[S.cal]||{},g=S.goals;
-  // collect all days in month that have data
-  var allDays=Object.keys(mData);
-  var monthTotal=0,monthDays=0;
-  allDays.forEach(function(d){var t=tot(mData[d]);monthTotal+=t.c;monthDays++;});
-  // current week (Mon–Sun containing today)
-  var td=today(),tDate=new Date(td+'T12:00:00');
-  var dow=(tDate.getDay()+6)%7; // 0=Mon
-  var weekStart=new Date(tDate);weekStart.setDate(tDate.getDate()-dow);
-  var weekTotal=0,weekDays=0;
-  for(var wi=0;wi<7;wi++){
-    var wd=new Date(weekStart);wd.setDate(weekStart.getDate()+wi);
-    var wds=wd.toISOString().slice(0,10);
-    var wm=wd.getFullYear()+'-'+('0'+(wd.getMonth()+1)).slice(-2);
-    var wData=(S.months[wm]||{})[wds];
-    if(wData){weekTotal+=tot(wData).c;weekDays++;}
+  var mData = S.months[S.cal] || {}, g = S.goals;
+  var td = today(), tDate = new Date(td + 'T12:00:00');
+  
+  // 1. Mjesečne kalorije i limit
+  var y = +S.cal.slice(0, 4), mo = +S.cal.slice(5, 7);
+  var dim = new Date(y, mo, 0).getDate();
+  var monthTotal = 0;
+  for (var d = 1; d <= dim; d++) {
+    var ds = S.cal + '-' + (d < 10 ? '0' : '') + d;
+    if (mData[ds]) monthTotal += tot(mData[ds]).c;
   }
-  var dim=new Date(+S.cal.slice(0,4),+S.cal.slice(5,7),0).getDate();
-  var monthTarget=dim*g.c;
-  var weekTarget=7*g.c;
-  function sc(label,eaten,target){
-    var pc=Math.min(100,target?eaten/target*100:0);
-    var diff=target-eaten,over=diff<0;
-    return '<div class="stat-card">'+
-      '<div class="slabel">'+label+'</div>'+
-      '<div class="sval">'+Math.round(eaten)+'<small> kcal</small></div>'+
-      '<div class="starget">'+(over?'<span style="color:#ff6b6b">'+Math.round(Math.abs(diff))+' over</span>':'<span>'+Math.round(diff)+' left</span>')+' · target '+Math.round(target)+'</div>'+
-      '<div class="sbar"><i style="width:'+pc+'%"></i></div>'+
+  var monthTarget = dim * g.c;
+
+  // 2. Tjedne kalorije (Ponedjeljak – Nedjelja)
+  var dow = (tDate.getDay() + 6) % 7; // 0 = Ponedjeljak
+  var weekStart = new Date(tDate);
+  weekStart.setDate(tDate.getDate() - dow);
+  
+  var weekTotal = 0;
+  for (var wi = 0; wi < 7; wi++) {
+    var wd = new Date(weekStart);
+    wd.setDate(weekStart.getDate() + wi);
+    var wds = wd.toISOString().slice(0, 10);
+    var wm = wds.slice(0, 7);
+    var wData = (S.months[wm] || {})[wds];
+    if (wData) weekTotal += tot(wData).c;
+  }
+  var weekTarget = 7 * g.c;
+
+  function sc(label, eaten, target, sublabel){
+    var pc = Math.min(100, target ? (eaten / target * 100) : 0);
+    var diff = target - eaten, over = diff < 0;
+    return '<div class="stat-card">' +
+      '<div class="slabel">' + label + '</div>' +
+      '<div class="sval">' + Math.round(eaten) + '<small> / ' + Math.round(target) + ' kcal</small></div>' +
+      '<div class="starget">' + (over ? '<span style="color:#ff453a">' + Math.round(Math.abs(diff)) + ' over</span>' : '<span>' + Math.round(diff) + ' left</span>') + ' · ' + sublabel + '</div>' +
+      '<div class="sbar"><i style="width:' + pc + '%"></i></div>' +
     '</div>';
   }
-  return '<div class="sec">Statistics</div>'+
-    '<div class="stats-grid">'+sc('This week',weekTotal,weekTarget)+sc('This month',monthTotal,monthTarget)+'</div>';
+
+  return '<div class="sec">Statistics</div>' +
+    '<div class="stats-grid">' +
+      sc('This week', weekTotal, weekTarget, '7-day target') +
+      sc('This month', monthTotal, monthTarget, dim + '-day target') +
+    '</div>';
 }
+
 function blobToData(b){return new Promise(function(ok,no){var fr=new FileReader();fr.onload=function(){ok(fr.result)};fr.onerror=no;fr.readAsDataURL(b)})}
 var AISample={
   limits:function(){return Promise.resolve({images:true})},
@@ -486,6 +532,26 @@ makeIcon();
 var last=today();
 setInterval(function(){var t=today();if(t!==last){last=t;S.view=t;S.cal=t.slice(0,7);loadAll().then(function(){if(!S.sheet)render()})}},20000);
 document.addEventListener('visibilitychange',function(){if(!document.hidden){var t=today();last=t;loadAll().then(function(){if(!S.sheet)render()})}});
+/* Auto-update checker: detektira noviju verziju na Vercelu i osvjezava PWA */
+var CURRENT_VERSION = 'v1.04';
+async function checkForAppUpdates(){
+  try {
+    var res = await fetch('/macros.html?_check=' + Date.now(), { cache: 'no-store' });
+    if (!res.ok) return;
+    var html = await res.text();
+    var match = html.match(/id="versionBadge"[^>]*>([^<]+)<\/div>/);
+    if (match && match[1] && match[1].trim() !== CURRENT_VERSION) {
+      console.log('New version found: ' + match[1] + '. Updating...');
+      window.location.reload();
+    }
+  } catch(e) {}
+}
+
+document.addEventListener('visibilitychange', function(){
+  if (!document.hidden) checkForAppUpdates();
+});
+setInterval(checkForAppUpdates, 60000); // provjerava svake minute
+
 init();
 </script>
 </body>
