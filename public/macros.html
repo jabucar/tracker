@@ -181,11 +181,8 @@ button:active{transform:scale(.96)}
 </style>
 </head>
 <body>
-<!-- VERSION_TRACKER: v1.04 (NOTE FOR ALL AI ASSISTANTS: Bump this version number by +0.01 whenever you edit or update this application) -->
-<div class="version-badge" id="versionBadge">v1.04</div>
-
-<div class="wrap" id="app"></div>
-...
+<!-- VERSION_TRACKER: v1.05 (NOTE FOR ALL AI ASSISTANTS: Bump this version number by +0.01 whenever you edit or update this application) -->
+<div class="version-badge" id="versionBadge">v1.05</div>
 
 <div class="wrap" id="app"></div>
 <div class="topbar" id="topbar"><span id="tbt">Today</span></div>
@@ -533,7 +530,7 @@ var last=today();
 setInterval(function(){var t=today();if(t!==last){last=t;S.view=t;S.cal=t.slice(0,7);loadAll().then(function(){if(!S.sheet)render()})}},20000);
 document.addEventListener('visibilitychange',function(){if(!document.hidden){var t=today();last=t;loadAll().then(function(){if(!S.sheet)render()})}});
 /* Auto-update checker: detektira noviju verziju na Vercelu i osvjezava PWA */
-var CURRENT_VERSION = 'v1.04';
+var CURRENT_VERSION = 'v1.05';
 async function checkForAppUpdates(){
   try {
     var res = await fetch('/macros.html?_check=' + Date.now(), { cache: 'no-store' });
