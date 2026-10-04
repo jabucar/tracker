@@ -168,15 +168,21 @@ function esc(s){var d=document.createElement('div');d.textContent=s;return d.inn
 function num(v){v=parseFloat(String(v).replace(',','.'));return isFinite(v)&&v>0?Math.round(v*10)/10:0}
 function uid(){return Date.now().toString(36)+Math.random().toString(36).slice(2,6)}
 
-/* storage: cloud db when available, always mirrored to this device */
-function ref(k){return S.db.collection('data/users/'+S.uid).doc(k)}
+/* storage: always write to localStorage immediately (instant), sync to cloud via /api/sync */
 async function load(k){
-  if(S.db&&S.uid){try{var s=await ref(k).get();if(s.exists)return JSON.parse(JSON.stringify(s.data()))}catch(e){}}
+  // Try cloud first so all devices share the same data
+  try{
+    var r=await fetch('/api/sync?key='+encodeURIComponent(k),{cache:'no-store'});
+    if(r.ok){var d=await r.json();if(d!==null){try{localStorage.setItem('mt_'+k,JSON.stringify(d))}catch(e){}return d}}
+  }catch(e){}
+  // Fall back to local cache if offline
   try{return JSON.parse(localStorage.getItem('mt_'+k))}catch(e){return null}
 }
 async function save(k,v){
+  // Write locally for instant feedback
   try{localStorage.setItem('mt_'+k,JSON.stringify(v))}catch(e){}
-  if(S.db&&S.uid){try{await ref(k).set(v)}catch(e){}}
+  // Sync to cloud in the background
+  try{fetch('/api/sync?key='+encodeURIComponent(k),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(v)}).catch(function(){});}catch(e){}
 }
 async function loadMonth(m){var d=await load('m_'+m);S.months[m]=(d&&d.days)||{}}
 function dayList(date){var m=S.months[date.slice(0,7)]||{};return m[date]||[]}
@@ -375,11 +381,11 @@ function editScan(){var x=S.scan.res;if(!x)return;S.pre={n:scanName(),c:x.c,p:x.
 async function loadAll(){
   var m=await load('meals');S.meals=(m&&m.list)||[];
   var g=await load('gym');S.gym=(g&&g.w)||{};
-  if(!localStorage.getItem('mt_seeded2')){
-    var seed=[{n:'250g (pola) 0% masti jogurta',c:125,p:20.8,cb:10.3,f:0},{n:'Marenda (2 sendvica)',c:525,p:30,cb:60,f:16},{n:'Mahune i kruv',c:780,p:28,cb:85,f:38}];
-    seed.forEach(function(s){if(!S.meals.some(function(e){return e.n===s.n}))S.meals.push(Object.assign({id:uid()},s))});
-    await save('meals',{list:S.meals});localStorage.setItem('mt_seeded2','1');
-  }
+  // Always ensure the 3 base meals exist (import from image)
+  var seed=[{n:'250g (pola) 0% masti jogurta',c:125,p:20.8,cb:10.3,f:0},{n:'Marenda (2 sendvica)',c:525,p:30,cb:60,f:16},{n:'Mahune i kruv',c:780,p:28,cb:85,f:38}];
+  var changed=false;
+  seed.forEach(function(s){if(!S.meals.some(function(e){return e.n===s.n})){S.meals.push(Object.assign({id:uid()},s));changed=true;}});
+  if(changed)await save('meals',{list:S.meals});
   await loadMonth(today().slice(0,7));
   if(S.tab==='cal')await loadMonth(S.cal);
 }
@@ -398,10 +404,6 @@ var AISample={
 };
 async function init(){
   render();
-  try{
-    var u=await window.claude.use('user'),d=await window.claude.use('db');
-    if(u&&d){var id=await u.id();if(id){S.uid=id;S.db=d}}
-  }catch(e){}
   S.sample=AISample;S.lim={images:true};
   await loadAll();
   if(!S.sheet)render();
