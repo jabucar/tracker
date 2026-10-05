@@ -45,7 +45,7 @@ export const Route = createFileRoute("/api/scan")({
 
         if (!prompt) return Response.json({ error: "Missing prompt" }, { status: 400 });
 
-        // 1. Google Gemini (pokusaj s modelima redom)
+        // 1. Google Gemini (pokušaj s modelima redom)
         if (geminiKey) {
           try {
             const parts: Array<Record<string, unknown>> = [{ text: prompt }];
@@ -54,44 +54,66 @@ export const Route = createFileRoute("/api/scan")({
               if (match) parts.push({ inlineData: { mimeType: match[1], data: match[2] } });
             }
 
-            const candidateModels = ["gemini-3.5-flash", "gemini-flash-latest", "gemini-3-flash-preview"];
+            const candidateModels = [
+              "gemini-3.5-flash",
+              "gemini-flash-latest",
+              "gemini-3-flash-preview",
+              "gemini-3.1-flash-lite",
+              "gemini-3.5-flash-lite",
+            ];
 
             let lastErr = "";
             let lastStatus = 502;
 
             for (const model of candidateModels) {
-              const res = await fetch(
-                `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`,
-                {
-                  method: "POST",
-                  headers: { "Content-Type": "application/json", "x-goog-api-key": geminiKey },
-                  body: JSON.stringify({
-                    contents: [{ parts }],
-                    generationConfig: { temperature: 0.2, responseMimeType: "application/json" },
-                  }),
-                }
-              );
+              for (let attempt = 0; attempt < 2; attempt++) {
+                const res = await fetch(
+                  `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`,
+                  {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json", "x-goog-api-key": geminiKey },
+                    body: JSON.stringify({
+                      contents: [{ parts }],
+                      generationConfig: { temperature: 0.2, responseMimeType: "application/json" },
+                    }),
+                  }
+                );
 
-              if (res.ok) {
-                const data = (await res.json()) as any;
-                const rawText = data?.candidates?.[0]?.content?.parts?.[0]?.text || "";
-                try {
-                  return Response.json(JSON.parse(rawText));
-                } catch {
-                  const m = rawText.match(/\{[\s\S]*\}/);
-                  if (m) return Response.json(JSON.parse(m[0]));
-                  return Response.json({ error: "Gemini nije vratio JSON", raw: rawText.slice(0, 200) }, { status: 502 });
+                if (res.ok) {
+                  const data = (await res.json()) as any;
+                  const rawText = data?.candidates?.[0]?.content?.parts?.[0]?.text || "";
+                  try {
+                    return Response.json(JSON.parse(rawText));
+                  } catch {
+                    const m = rawText.match(/\{[\s\S]*\}/);
+                    if (m) return Response.json(JSON.parse(m[0]));
+                    return Response.json(
+                      { error: "Gemini nije vratio JSON", raw: rawText.slice(0, 200) },
+                      { status: 502 }
+                    );
+                  }
                 }
+
+                lastStatus = res.status;
+                const errTxt = await res.text().catch(() => "");
+                lastErr = `${model} (${res.status}): ${errTxt.slice(0, 200)}`;
+
+                // Privremeno preopterećenje: kratko pričekaj pa probaj isti model još jednom
+                if ((res.status === 503 || res.status === 500 || res.status === 504) && attempt === 0) {
+                  await new Promise((r) => setTimeout(r, 800));
+                  continue;
+                }
+                break;
               }
 
-              lastStatus = res.status;
-              const errTxt = await res.text().catch(() => "");
-              lastErr = `${model} (${res.status}): ${errTxt.slice(0, 200)}`;
-
-              if (res.status === 429) {
-                return Response.json({ error: "Previše zahtjeva prema Gemini API (429). Pričekaj trenutak." }, { status: 429 });
+              // 404/500/503/504 = probaj sljedeći model; ostalo (400, 401, 403, 429) prekida petlju
+              if (lastStatus === 429) {
+                return Response.json(
+                  { error: "Previše zahtjeva prema Gemini API (429). Pričekaj trenutak." },
+                  { status: 429 }
+                );
               }
-              if (res.status !== 404) break;
+              if (![404, 500, 503, 504].includes(lastStatus)) break;
             }
 
             return Response.json({ error: "Gemini error: " + lastErr }, { status: lastStatus });
