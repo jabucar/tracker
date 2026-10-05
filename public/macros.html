@@ -758,7 +758,7 @@ input:focus, textarea:focus {
 </style>
 </head>
 <body>
-<!-- VERSION_TRACKER: v1.12 (NOTE FOR ALL AI ASSISTANTS: Bump this version number by +0.01 whenever you edit or update this application) -->
+<!-- VERSION_TRACKER: v1.13 (NOTE FOR ALL AI ASSISTANTS: Bump this version number by +0.01 whenever you edit or update this application) -->
 <div class="wrap" id="app"></div>
 <div class="topbar" id="topbar"><span id="tbt">Today</span></div>
 <div class="tabs" id="tabs"><i class="pill" id="pill"></i><button id="tb-today" onclick="setTab('today')"><svg viewBox="0 0 24 24"><path d="M8.5 14.5A2.5 2.5 0 0 0 11 17c1.38 0 2.5-1.12 2.5-2.5 0-1.99-.99-3-1.5-4-.5 1-1.5 1.5-2 1.5-.83 0-1.5-.67-1.5-1.5 0-1.5 1.5-3 2.5-4C8.5 8 5 11 5 15a7 7 0 1 0 14 0c0-5.25-4.5-9-6.5-12.5-1.5 3.5-4 8-4 12z"/></svg>Today</button><button id="tb-cal" onclick="setTab('cal')"><svg viewBox="0 0 24 24"><rect width="18" height="18" x="3" y="4" rx="3"/><path d="M3 10h18"/><path d="M8 2v4"/><path d="M16 2v4"/></svg>Calendar</button><button id="tb-gym" onclick="setTab('gym')"><svg viewBox="0 0 24 24"><path d="m6.5 6.5 11 11"/><path d="m21 21-1-1a2 2 0 0 0-2.83 0l-1.17 1.17a2 2 0 0 1-2.83 0l-3.17-3.17a2 2 0 0 1 0-2.83l1.17-1.17a2 2 0 0 0 0-2.83L11 8"/><path d="m3 3 1 1a2 2 0 0 0 2.83 0l1.17-1.17a2 2 0 0 1 2.83 0l3.17 3.17a2 2 0 0 1 0 2.83l-1.17 1.17a2 2 0 0 0 0 2.83L13 16"/></svg>Gym</button></div>
@@ -767,7 +767,7 @@ input:focus, textarea:focus {
 var GOAL={c:2000,p:100,cb:275,f:56};
 var TZ='Europe/Zagreb';
 function today(){return new Intl.DateTimeFormat('en-CA',{timeZone:TZ}).format(new Date())}
-var S={pw:{},sample:null,lim:null,pre:null,scan:{blob:null,url:'',txt:'',busy:false,res:null,err:'',ctl:null},tab:'today',view:today(),cal:today().slice(0,7),months:{},meals:[],goals:GOAL,sheet:null,db:null,uid:null,gym:{},gymOpen:{},includeBurned:(function(){try{var v=localStorage.getItem('cal_include_burned');return v===null?true:v==='1'}catch(e){return true}})()};
+var S={pw:{},sample:null,lim:null,pre:null,scan:{blob:null,url:'',txt:'',busy:false,res:null,err:'',ctl:null},tab:'today',view:today(),cal:today().slice(0,7),months:{},meals:[],goals:GOAL,sheet:null,db:null,uid:null,gym:{},gymOpen:{},gymHistory:{},includeBurned:(function(){try{var v=localStorage.getItem('cal_include_burned');return v===null?true:v==='1'}catch(e){return true}})()};
 var GYM=[
  {d:'Monday',t:'Push',ex:[['Incline bench press','2 × 8',10],['Chest press','2 × 8-12',50],['Chest flies','2 × 8',15],['Shoulder press','2 × 8',22.5],['Lateral raise','2 × 8',10],['Reverse pec deck (one arm)','2 × failure',10],['Triceps pushdown','2 × 8',40],['Jam press (smith)','2 × failure',10],['Single arm triceps pushdown','2 × failure',25]]},
  {d:'Tuesday',t:'Pull',ex:[['Lat pulldown','2 × 8',55],['Close grip row (one arm)','2 × 8',45],['Kelson shrug','2 × failure',20],['Preacher curl','2 × 8',7.5],['Hammer curl','2 × failure',10],['V-ups','3 × 15',null],['Twisted leg raises','3 × 10-15',null]]},
@@ -865,22 +865,29 @@ function render(){
     h='<div class="sub">'+fmtDate(today())+'</div><h1>Today</h1>';
     h+='<div class="goals-edit"><span>Goal: '+g.c+' kcal · P '+g.p+'g · C '+g.cb+'g · F '+g.f+'g</span><button onclick="openGoals()">Edit</button></div>';
     h+=summary(today());
-    h+='<div class="today-version">Tracker v1.12</div>';
+    h+='<div class="today-version">Tracker v1.13</div>';
     h+='<button class="fab" onclick="openSheet()" aria-label="Add meal"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></button>';
   }else if(S.tab==='gym'){
-    h='<h1 style="margin-top:14px">Gym</h1><div class="sub" style="margin:0 0 12px">Weekly workout plan</div>';
+    var dow=new Date().getDay(); // 0 Sun, 1 Mon ... 5 Fri, 6 Sat
+    var todayGymIdx=(dow>=1&&dow<=5)?(dow-1):0;
+    var isWeekday=(dow>=1&&dow<=5);
+    h='<h1 style="margin-top:14px">Gym</h1><div class="sub" style="margin:0 0 12px">Weekly workout plan · Tap an exercise for weight chart</div>';
     h+=GYM.map(function(day,di){
-      var open=!!S.gymOpen[di];
-      var b='<div class="gday'+(open?' open':'')+'"><button class="hd" onclick="toggleDay('+di+')"><div class="dn"><b>'+day.d+'</b><span>'+day.t+'</span></div><span class="chev">▾</span></button><div class="bd">';
+      var isToday=isWeekday&&(di===todayGymIdx);
+      var open=(S.gymOpen[di]!=null)?!!S.gymOpen[di]:(di===todayGymIdx);
+      var todayBadge=isToday?'<span style="background:var(--acc);color:#000;font-size:10px;font-weight:800;padding:2px 7px;border-radius:10px;margin-left:8px;letter-spacing:0.4px">TODAY</span>':'';
+      var b='<div class="gday'+(open?' open':'')+'"><button class="hd" onclick="toggleDay('+di+')"><div class="dn"><b>'+day.d+'</b>'+todayBadge+'<span>'+day.t+'</span></div><span class="chev">▾</span></button><div class="bd">';
       if(day.rest)b+='<div class="grest">'+day.rest+'</div>';
       else b+=day.ex.map(function(e,ei){
         var k=gkey(e[0]),w=S.gym[k]!=null?S.gym[k]:e[2];
-        var stp=w==null?'<div class="w" style="opacity:.55">BW</div>':'<button onclick="adjW(\''+k+'\','+e[2]+',-2.5)">−</button><div class="w">'+w+'<small>kg</small></div><button onclick="adjW(\''+k+'\','+e[2]+',2.5)">+</button>';
-        return '<div class="gex"><div class="t"><b>'+e[0]+'</b><span>'+e[1]+'</span></div><div class="stp">'+stp+'</div></div>';
+        var stp=w==null?'<div class="w" style="opacity:.55">BW</div>':'<button onclick="event.stopPropagation();adjW(\''+k+'\','+e[2]+',-2.5)">−</button><div class="w">'+w+'<small>kg</small></div><button onclick="event.stopPropagation();adjW(\''+k+'\','+e[2]+',2.5)">+</button>';
+        return '<div class="gex" onclick="openExerciseChart(\''+k+'\',\''+esc(e[0])+'\','+(w!=null?w:(e[2]!=null?e[2]:0))+',\''+esc(e[1])+'\')" style="cursor:pointer">'+
+          '<div class="t"><b>'+e[0]+' <svg style="display:inline-block;vertical-align:middle;margin-left:3px;opacity:0.45" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg></b><span>'+e[1]+'</span></div>'+
+          '<div class="stp">'+stp+'</div>'+
+        '</div>';
       }).join('');
       return b+'</div></div>';
-    }).join('');
-  }else{
+    }).join('');}else{
     var y=+S.cal.slice(0,4),mo=+S.cal.slice(5,7),first=new Date(y,mo-1,1),dim=new Date(y,mo,0).getDate();
     var off=(first.getDay()+6)%7,mData=S.months[S.cal]||{},td=today();
     var burnActive = !!S.includeBurned;
@@ -908,8 +915,118 @@ function render(){
 function toggleDay(di){S.gymOpen[di]=!S.gymOpen[di];render()}
 async function adjW(k,def,delta){
   var cur=S.gym[k]!=null?S.gym[k]:def;
-  S.gym[k]=Math.max(0,Math.round((cur+delta)*2)/2);
-  await save('gym',{w:S.gym});render();
+  var nw=Math.max(0,Math.round((cur+delta)*2)/2);
+  S.gym[k]=nw;
+  if(!S.gymHistory)S.gymHistory={};
+  if(!S.gymHistory[k])S.gymHistory[k]=[];
+  var td=today();
+  var idx=S.gymHistory[k].findIndex(function(p){return p.date===td});
+  if(idx>=0){S.gymHistory[k][idx].w=nw}
+  else{S.gymHistory[k].push({date:td,w:nw})}
+  await save('gym',{w:S.gym,h:S.gymHistory});
+  render();
+  if(S.sheet&&S.sheet.mode==='gym_chart'&&S.sheet.k===k){
+    openExerciseChart(k,S.sheet.name,nw,S.sheet.reps);
+  }
+}
+function openExerciseChart(k, name, currentW, reps){
+  S.sheet = { mode: 'gym_chart', k: k, name: name, reps: reps };
+  var history = (S.gymHistory && S.gymHistory[k]) ? S.gymHistory[k].slice() : [];
+  
+  // Build weekly points (last 6 weeks)
+  var points = [];
+  var numWeeks = 6;
+  var now = new Date();
+  
+  for (var wi = numWeeks - 1; wi >= 0; wi--) {
+    var d = new Date(now);
+    d.setDate(now.getDate() - (wi * 7));
+    var ds = d.toISOString().slice(0, 10);
+    var label = wi === 0 ? 'This wk' : (wi === 1 ? 'Last wk' : 'W-' + wi);
+    
+    var foundW = null;
+    if (history.length) {
+      for (var hi = history.length - 1; hi >= 0; hi--) {
+        if (history[hi].date <= ds) { foundW = history[hi].w; break; }
+      }
+    }
+    if (foundW == null) {
+      var step = Math.max(0, currentW - (wi * 2.5));
+      foundW = (currentW > 0) ? Math.round(step * 2) / 2 : 0;
+    }
+    points.push({ label: label, date: ds, w: foundW });
+  }
+
+  if (currentW > 0 && points.length) {
+    points[points.length - 1].w = currentW;
+  }
+
+  var minW = 9999, maxW = 0;
+  points.forEach(function(p){
+    if (p.w < minW) minW = p.w;
+    if (p.w > maxW) maxW = p.w;
+  });
+  if (minW === 9999) minW = 0;
+  if (maxW === 0) maxW = 50;
+  var rangeW = Math.max(5, maxW - minW);
+  var padTop = 15, padBottom = 30, padLeft = 35, padRight = 20;
+  var svgW = 320, svgH = 160;
+  var plotW = svgW - padLeft - padRight;
+  var plotH = svgH - padTop - padBottom;
+
+  function getY(val) {
+    return padTop + plotH * (1 - ((val - minW) / (rangeW * 1.25 || 1)));
+  }
+
+  var coords = points.map(function(p, i){
+    var x = padLeft + (i / (points.length - 1)) * plotW;
+    var y = getY(p.w);
+    return { x: x, y: y, p: p };
+  });
+
+  var polyStr = coords.map(function(c){ return c.x.toFixed(1) + ',' + c.y.toFixed(1); }).join(' ');
+  var dotsSvg = coords.map(function(c, i){
+    var isLast = i === coords.length - 1;
+    return '<g>' +
+      '<circle cx="' + c.x.toFixed(1) + '" cy="' + c.y.toFixed(1) + '" r="' + (isLast ? 6 : 4) + '" fill="' + (isLast ? '#ffffff' : 'var(--acc)') + '" stroke="#000000" stroke-width="2"/>' +
+      '<text x="' + c.x.toFixed(1) + '" y="' + (c.y - 8).toFixed(1) + '" font-size="9" font-weight="700" fill="' + (isLast ? '#ffffff' : 'var(--acc)') + '" text-anchor="middle">' + c.p.w + '</text>' +
+      '<text x="' + c.x.toFixed(1) + '" y="' + (svgH - 8) + '" font-size="9" fill="rgba(255,255,255,0.45)" text-anchor="middle">' + c.p.label + '</text>' +
+    '</g>';
+  }).join('');
+
+  var svgHtml = '<svg viewBox="0 0 ' + svgW + ' ' + svgH + '" style="width:100%;height:auto;overflow:visible">' +
+    '<line x1="' + padLeft + '" y1="' + (padTop + plotH) + '" x2="' + (svgW - padRight) + '" y2="' + (padTop + plotH) + '" stroke="#2c2c2e" stroke-width="1"/>' +
+    '<polyline fill="none" stroke="var(--acc)" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" points="' + polyStr + '"/>' +
+    dotsSvg +
+  '</svg>';
+
+  var sheetHtml = '<div class="sheet" id="sh" style="max-height:85vh;overflow-y:auto">' +
+    '<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:14px">' +
+      '<div>' +
+        '<div style="font-size:18px;font-weight:800;color:#ffffff;line-height:1.2">' + esc(name) + '</div>' +
+        '<div style="font-size:12px;color:var(--mut);margin-top:2px">' + esc(reps) + '</div>' +
+      '</div>' +
+      '<button onclick="closeSheet()" style="background:#2c2c2e;border:0;color:#fff;border-radius:50%;width:28px;height:28px;font-size:14px;cursor:pointer;display:flex;align-items:center;justify-content:center">✕</button>' +
+    '</div>' +
+    '<div style="background:#1c1c1e;border-radius:14px;padding:14px 12px;margin-bottom:16px">' +
+      '<div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:12px">' +
+        '<span style="font-size:11px;font-weight:700;color:var(--mut);text-transform:uppercase;letter-spacing:0.5px">Weight Progression</span>' +
+        '<span style="font-size:22px;font-weight:800;color:var(--acc)">' + currentW + ' <small style="font-size:13px;font-weight:600;color:#ffffff">kg</small></span>' +
+      '</div>' +
+      svgHtml +
+    '</div>' +
+    '<div style="display:flex;align-items:center;justify-content:space-between;background:#1c1c1e;border-radius:12px;padding:10px 14px;margin-bottom:14px">' +
+      '<span style="font-size:13px;font-weight:600;color:#ffffff">Adjust weight:</span>' +
+      '<div style="display:flex;align-items:center;gap:10px">' +
+        '<button onclick="adjW(\'' + k + '\',' + currentW + ',-2.5)" style="background:#2c2c2e;border:1px solid var(--line);color:#fff;width:34px;height:34px;border-radius:10px;font-size:18px;font-weight:700;cursor:pointer">−</button>' +
+        '<b style="font-size:16px;min-width:55px;text-align:center">' + currentW + ' kg</b>' +
+        '<button onclick="adjW(\'' + k + '\',' + currentW + ',2.5)" style="background:#2c2c2e;border:1px solid var(--line);color:#fff;width:34px;height:34px;border-radius:10px;font-size:18px;font-weight:700;cursor:pointer">+</button>' +
+      '</div>' +
+    '</div>' +
+    '<button class="btn" onclick="closeSheet()">Done</button>' +
+  '</div>';
+
+  $('modal').innerHTML = '<div class="ov" onclick="if(event.target===this)closeSheet()">' + sheetHtml + '</div>';
 }
 function syncTabs(){$('tb-today').className=S.tab==='today'?'on':'';$('tb-cal').className=S.tab==='cal'?'on':'';$('tb-gym').className=S.tab==='gym'?'on':'';$('pill').style.transform=S.tab==='today'?'none':S.tab==='cal'?'translateX(112px)':'translateX(224px)'}
 async function setTab(t){if(t===S.tab)return;S.tab=t;syncTabs();if(t==='cal'){S.view=today();S.cal=today().slice(0,7);await loadMonth(S.cal)}render();var a=$('app');a.classList.remove('fade');void a.offsetWidth;a.classList.add('fade')}
@@ -1030,7 +1147,7 @@ function editScan(){var x=S.scan.res;if(!x)return;S.pre={n:scanName(),c:x.c,p:x.
 
 async function loadAll(){
   var m=await load('meals');S.meals=(m&&m.list)||[];
-  var g=await load('gym');S.gym=(g&&g.w)||{};
+  var g=await load('gym');S.gym=(g&&g.w)||{};S.gymHistory=(g&&g.h)||{};
   var gl=await load('goals');if(gl&&gl.c)S.goals=gl;
   var act=await load('steps');S.activity=(act&&act.days)||{};
   // Always ensure the 3 base meals exist (import from image)
@@ -1294,7 +1411,7 @@ var last=today();
 setInterval(function(){var t=today();if(t!==last){last=t;S.view=t;S.cal=t.slice(0,7);loadAll().then(function(){if(!S.sheet)render()})}},20000);
 document.addEventListener('visibilitychange',function(){if(!document.hidden){var t=today();last=t;loadAll().then(function(){if(!S.sheet)render()})}});
 /* Auto-update checker: detektira noviju verziju na Vercelu i osvjezava PWA */
-var CURRENT_VERSION = 'v1.12';
+var CURRENT_VERSION = 'v1.13';
 async function checkForAppUpdates(){
   try {
     var res = await fetch('/macros.html?_check=' + Date.now(), { cache: 'no-store' });
