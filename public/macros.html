@@ -758,7 +758,7 @@ input:focus, textarea:focus {
 </style>
 </head>
 <body>
-<!-- VERSION_TRACKER: v1.15 (NOTE FOR ALL AI ASSISTANTS: Bump this version number by +0.01 whenever you edit or update this application) -->
+<!-- VERSION_TRACKER: v1.16 (NOTE FOR ALL AI ASSISTANTS: Bump this version number by +0.01 whenever you edit or update this application) -->
 <div class="wrap" id="app"></div>
 <div class="topbar" id="topbar"><span id="tbt">Today</span></div>
 <div class="tabs" id="tabs"><i class="pill" id="pill"></i><button id="tb-today" onclick="setTab('today')"><svg viewBox="0 0 24 24"><path d="M8.5 14.5A2.5 2.5 0 0 0 11 17c1.38 0 2.5-1.12 2.5-2.5 0-1.99-.99-3-1.5-4-.5 1-1.5 1.5-2 1.5-.83 0-1.5-.67-1.5-1.5 0-1.5 1.5-3 2.5-4C8.5 8 5 11 5 15a7 7 0 1 0 14 0c0-5.25-4.5-9-6.5-12.5-1.5 3.5-4 8-4 12z"/></svg>Today</button><button id="tb-cal" onclick="setTab('cal')"><svg viewBox="0 0 24 24"><rect width="18" height="18" x="3" y="4" rx="3"/><path d="M3 10h18"/><path d="M8 2v4"/><path d="M16 2v4"/></svg>Calendar</button><button id="tb-gym" onclick="setTab('gym')"><svg viewBox="0 0 24 24"><path d="m6.5 6.5 11 11"/><path d="m21 21-1-1a2 2 0 0 0-2.83 0l-1.17 1.17a2 2 0 0 1-2.83 0l-3.17-3.17a2 2 0 0 1 0-2.83l1.17-1.17a2 2 0 0 0 0-2.83L11 8"/><path d="m3 3 1 1a2 2 0 0 0 2.83 0l1.17-1.17a2 2 0 0 1 2.83 0l3.17 3.17a2 2 0 0 1 0 2.83l-1.17 1.17a2 2 0 0 0 0 2.83L13 16"/></svg>Gym</button></div>
@@ -865,7 +865,7 @@ function render(){
     h='<div class="sub">'+fmtDate(today())+'</div><h1>Today</h1>';
     h+='<div class="goals-edit"><span>Goal: '+g.c+' kcal · P '+g.p+'g · C '+g.cb+'g · F '+g.f+'g</span><button onclick="openGoals()">Edit</button></div>';
     h+=summary(today());
-    h+='<div class="today-version">Tracker v1.15</div>';
+    h+='<div class="today-version">Tracker v1.16</div>';
     h+='<button class="fab" onclick="openSheet()" aria-label="Add meal"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></button>';
   }else if(S.tab==='gym'){
     var dow=new Date().getDay(); // 0 Sun, 1 Mon ... 5 Fri, 6 Sat
@@ -912,52 +912,129 @@ function render(){
   $('app').querySelectorAll('circle[data-o]').forEach(function(e){e.style.strokeDashoffset=e.dataset.o;S.pw[e.dataset.k]=e.dataset.o});
   $('tbt').textContent=S.tab==='today'?'Today':S.tab==='cal'?'Calendar':'Gym';
 }
-function toggleDay(di){S.gymOpen[di]=!S.gymOpen[di];render()}
-async function adjW(k,def,delta){
-  var cur=S.gym[k]!=null?S.gym[k]:def;
-  var nw=Math.max(0,Math.round((cur+delta)*2)/2);
-  S.gym[k]=nw;
-  if(!S.gymHistory)S.gymHistory={};
-  if(!S.gymHistory[k])S.gymHistory[k]=[];
-  var td=today();
-  var idx=S.gymHistory[k].findIndex(function(p){return p.date===td});
-  if(idx>=0){S.gymHistory[k][idx].w=nw}
-  else{S.gymHistory[k].push({date:td,w:nw})}
-  await save('gym',{w:S.gym,h:S.gymHistory});
-  render();
-  if(S.sheet&&S.sheet.mode==='gym_chart'&&S.sheet.k===k){
-    openExerciseChart(k,S.sheet.name,nw,S.sheet.reps);
-  }
+function getWeekMonday(dateStr) {
+  var parts = String(dateStr).slice(0, 10).split('-');
+  var d = new Date(parseInt(parts[0], 10), parseInt(parts[1], 10) - 1, parseInt(parts[2], 10));
+  var day = d.getDay();
+  var diff = (day === 0 ? -6 : 1 - day);
+  d.setDate(d.getDate() + diff);
+  var y = d.getFullYear();
+  var m = ('0' + (d.getMonth() + 1)).slice(-2);
+  var dt = ('0' + d.getDate()).slice(-2);
+  return y + '-' + m + '-' + dt;
 }
-function openExerciseChart(k, name, currentW, reps){
-  S.sheet = { mode: 'gym_chart', k: k, name: name, reps: reps };
-  var history = (S.gymHistory && S.gymHistory[k]) ? S.gymHistory[k].slice() : [];
-  
-  // Build weekly points (last 6 weeks)
-  var points = [];
-  var numWeeks = 6;
-  var now = new Date();
-  
-  for (var wi = numWeeks - 1; wi >= 0; wi--) {
-    var d = new Date(now);
-    d.setDate(now.getDate() - (wi * 7));
-    var ds = d.toISOString().slice(0, 10);
-    var label = wi === 0 ? 'This wk' : (wi === 1 ? 'Last wk' : 'W-' + wi);
-    
-    var foundW = null;
-    if (history.length) {
-      for (var hi = history.length - 1; hi >= 0; hi--) {
-        if (history[hi].date <= ds) { foundW = history[hi].w; break; }
-      }
-    }
-    if (foundW == null) {
-      var step = Math.max(0, currentW - (wi * 2.5));
-      foundW = (currentW > 0) ? Math.round(step * 2) / 2 : 0;
-    }
-    points.push({ label: label, date: ds, w: foundW });
+
+function getOffsetWeek(mondayStr, offsetWeeks) {
+  var parts = String(mondayStr).slice(0, 10).split('-');
+  var d = new Date(parseInt(parts[0], 10), parseInt(parts[1], 10) - 1, parseInt(parts[2], 10));
+  d.setDate(d.getDate() + (offsetWeeks * 7));
+  var y = d.getFullYear();
+  var m = ('0' + (d.getMonth() + 1)).slice(-2);
+  var dt = ('0' + d.getDate()).slice(-2);
+  return y + '-' + m + '-' + dt;
+}
+
+function ensureGymHistory(k, currentW) {
+  if (!S.gymHistory) S.gymHistory = {};
+  if (!S.gymHistory[k]) S.gymHistory[k] = [];
+  var thisMon = getWeekMonday(today());
+  var lastMon = getOffsetWeek(thisMon, -1);
+
+  var weekMap = {};
+  S.gymHistory[k].forEach(function(item) {
+    var wk = item.week || getWeekMonday(item.date || today());
+    weekMap[wk] = item.w;
+  });
+
+  // If no entry exists strictly before this week, initialize last week with currentW - 2.5
+  var hasPrior = Object.keys(weekMap).some(function(wk) { return wk < thisMon; });
+  if (!hasPrior) {
+    var baseW = (currentW != null && !isNaN(currentW)) ? currentW : 0;
+    weekMap[lastMon] = Math.max(0, Math.round((baseW - 2.5) * 2) / 2);
   }
 
-  if (currentW > 0 && points.length) {
+  // Ensure this week has an entry
+  if (weekMap[thisMon] == null && currentW != null && !isNaN(currentW)) {
+    weekMap[thisMon] = currentW;
+  }
+
+  var updated = [];
+  Object.keys(weekMap).sort().forEach(function(wk) {
+    updated.push({ week: wk, date: wk, w: weekMap[wk] });
+  });
+  S.gymHistory[k] = updated;
+  return weekMap;
+}
+
+function toggleDay(di){S.gymOpen[di]=!S.gymOpen[di];render()}
+
+async function adjW(k,def,delta){
+  var cur = S.gym[k] != null ? S.gym[k] : (def != null ? def : 0);
+  ensureGymHistory(k, cur);
+  var nw = Math.max(0, Math.round((cur + delta) * 2) / 2);
+  S.gym[k] = nw;
+
+  var thisMon = getWeekMonday(today());
+  var idx = S.gymHistory[k].findIndex(function(p){
+    var wk = p.week || getWeekMonday(p.date || today());
+    return wk === thisMon;
+  });
+  if (idx >= 0) {
+    S.gymHistory[k][idx].w = nw;
+    S.gymHistory[k][idx].week = thisMon;
+    S.gymHistory[k][idx].date = thisMon;
+  } else {
+    S.gymHistory[k].push({ week: thisMon, date: thisMon, w: nw });
+  }
+
+  S.gymHistory[k].sort(function(a, b){
+    var wa = a.week || getWeekMonday(a.date || today());
+    var wb = b.week || getWeekMonday(b.date || today());
+    return wa < wb ? -1 : (wa > wb ? 1 : 0);
+  });
+
+  await save('gym', { w: S.gym, h: S.gymHistory });
+  render();
+  if (S.sheet && S.sheet.mode === 'gym_chart' && S.sheet.k === k) {
+    openExerciseChart(k, S.sheet.name, nw, S.sheet.reps);
+  }
+}
+
+function openExerciseChart(k, name, currentW, reps){
+  S.sheet = { mode: 'gym_chart', k: k, name: name, reps: reps };
+  var weekMap = ensureGymHistory(k, currentW);
+
+  var thisMon = getWeekMonday(today());
+  var lastMon = getOffsetWeek(thisMon, -1);
+
+  // Sync current week to currentW
+  weekMap[thisMon] = currentW;
+
+  // Filter weeks up to current week
+  var recordedWeeks = Object.keys(weekMap).filter(function(wk){ return wk <= thisMon; }).sort();
+  var earliestMon = recordedWeeks.length ? recordedWeeks[0] : lastMon;
+
+  var dEarly = new Date(earliestMon + 'T12:00:00Z');
+  var dThis = new Date(thisMon + 'T12:00:00Z');
+  var diffW = Math.round((dThis - dEarly) / (7 * 24 * 3600 * 1000));
+  var spanWeeks = Math.min(8, Math.max(2, diffW + 1));
+
+  var points = [];
+  var lastVal = weekMap[lastMon] != null ? weekMap[lastMon] : Math.max(0, currentW - 2.5);
+
+  for (var wi = spanWeeks - 1; wi >= 0; wi--) {
+    var wDate = getOffsetWeek(thisMon, -wi);
+    var label = (wi === 0) ? 'This wk' : ((wi === 1) ? 'Last wk' : ('W-' + wi));
+    var val = weekMap[wDate];
+    if (val != null) {
+      lastVal = val;
+    } else {
+      val = lastVal;
+    }
+    points.push({ label: label, week: wDate, w: val });
+  }
+
+  if (points.length) {
     points[points.length - 1].w = currentW;
   }
 
@@ -979,7 +1056,7 @@ function openExerciseChart(k, name, currentW, reps){
   }
 
   var coords = points.map(function(p, i){
-    var x = padLeft + (i / (points.length - 1)) * plotW;
+    var x = points.length === 1 ? (padLeft + plotW / 2) : (padLeft + (i / (points.length - 1)) * plotW);
     var y = getY(p.w);
     return { x: x, y: y, p: p };
   });
@@ -1010,7 +1087,7 @@ function openExerciseChart(k, name, currentW, reps){
     '</div>' +
     '<div style="background:#1c1c1e;border-radius:14px;padding:14px 12px;margin-bottom:16px">' +
       '<div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:12px">' +
-        '<span style="font-size:11px;font-weight:700;color:var(--mut);text-transform:uppercase;letter-spacing:0.5px">Weight Progression</span>' +
+        '<span style="font-size:11px;font-weight:700;color:var(--mut);text-transform:uppercase;letter-spacing:0.5px">Weight Progression (' + spanWeeks + ' wks)</span>' +
         '<span style="font-size:22px;font-weight:800;color:var(--acc)">' + currentW + ' <small style="font-size:13px;font-weight:600;color:#ffffff">kg</small></span>' +
       '</div>' +
       svgHtml +
