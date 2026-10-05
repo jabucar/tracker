@@ -3,6 +3,26 @@ import { createFileRoute } from "@tanstack/react-router";
 export const Route = createFileRoute("/api/scan")({
   server: {
     handlers: {
+      GET: async () => {
+        const geminiKey = process.env["GEMINI_API_KEY"] || process.env["GOOGLE_API_KEY"];
+        if (!geminiKey) return Response.json({ error: "GEMINI_API_KEY is not set in environment" }, { status: 500 });
+
+        try {
+          const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${geminiKey}`, {
+            headers: { "x-goog-api-key": geminiKey },
+          });
+          const text = await res.text();
+          try {
+            const data = JSON.parse(text);
+            const models = (data.models || []).map((m: any) => m.name);
+            return Response.json({ count: models.length, models: models.slice(0, 30) });
+          } catch {
+            return Response.json({ raw: text }, { status: res.status });
+          }
+        } catch (e: any) {
+          return Response.json({ error: e?.message }, { status: 500 });
+        }
+      },
       POST: async ({ request }) => {
         const geminiKey = process.env["GEMINI_API_KEY"] || process.env["GOOGLE_API_KEY"];
         const openRouterKey = process.env["OPENROUTER_API_KEY"];
@@ -25,7 +45,7 @@ export const Route = createFileRoute("/api/scan")({
 
         if (!prompt) return Response.json({ error: "Missing prompt" }, { status: 400 });
 
-        // 1. Google Gemini (100% Free tier u Google AI Studio)
+        // 1. Google Gemini (pokusaj s modelima redom)
         if (geminiKey) {
           try {
             const parts: Array<Record<string, unknown>> = [{ text: prompt }];
@@ -42,39 +62,59 @@ export const Route = createFileRoute("/api/scan")({
               }
             }
 
-            const res = await fetch(
-              `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${geminiKey}`,
-              {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                  contents: [{ parts }],
-                  generationConfig: {
-                    temperature: 0.2,
-                    responseMimeType: "application/json",
+            const candidateModels = [
+              "gemini-2.5-flash",
+              "gemini-2.0-flash",
+              "gemini-1.5-flash",
+              "gemini-1.5-flash-latest",
+              "gemini-1.5-pro",
+            ];
+
+            let lastErr = "";
+            let lastStatus = 502;
+
+            for (const model of candidateModels) {
+              const res = await fetch(
+                `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${geminiKey}`,
+                {
+                  method: "POST",
+                  headers: {
+                    "Content-Type": "application/json",
+                    "x-goog-api-key": geminiKey,
                   },
-                }),
-              }
-            );
-
-            if (!res.ok) {
-              const errTxt = await res.text().catch(() => "");
-              console.error("Gemini API error:", res.status, errTxt.slice(0, 300));
-              return Response.json(
-                { error: res.status === 429 ? "Previše zahtjeva prema Gemini API. Pričekaj trenutak." : `Gemini error: ${res.status}` },
-                { status: res.status === 429 ? 429 : 502 }
+                  body: JSON.stringify({
+                    contents: [{ parts }],
+                    generationConfig: {
+                      temperature: 0.2,
+                      responseMimeType: "application/json",
+                    },
+                  }),
+                }
               );
+
+              if (res.ok) {
+                const data = (await res.json()) as any;
+                const rawText = data?.candidates?.[0]?.content?.parts?.[0]?.text || "";
+                const jsonMatch = rawText.match(/\\{[\\s\\S]*\\}/);
+                if (jsonMatch) {
+                  return Response.json(JSON.parse(jsonMatch[0]));
+                }
+              }
+
+              lastStatus = res.status;
+              const errTxt = await res.text().catch(() => "");
+              lastErr = `${model} (${res.status}): ${errTxt.slice(0, 200)}`;
+
+              // Ako nije 404 (npr. 429 quota ili 400), nemoj probavati ostale modele
+              if (res.status === 429) {
+                return Response.json({ error: "Previše zahtjeva prema Gemini API (429). Pričekaj trenutak." }, { status: 429 });
+              }
+              if (res.status !== 404) {
+                break;
+              }
             }
 
-            const data = (await res.json()) as any;
-            const rawText = data?.candidates?.[0]?.content?.parts?.[0]?.text || "";
-            const jsonMatch = rawText.match(/\\{[\\s\\S]*\\}/);
-            if (!jsonMatch) {
-              return Response.json({ error: "Model nije vratio valjan JSON" }, { status: 502 });
-            }
-
-            const parsed = JSON.parse(jsonMatch[0]);
-            return Response.json(parsed);
+            return Response.json({ error: "Gemini error: " + lastErr }, { status: lastStatus });
           } catch (e: any) {
             console.error("Gemini exception:", e);
             return Response.json({ error: e?.message || "Greška pri pozivu Gemini modela" }, { status: 500 });
