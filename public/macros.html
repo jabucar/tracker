@@ -758,7 +758,7 @@ input:focus, textarea:focus {
 </style>
 </head>
 <body>
-<!-- VERSION_TRACKER: v1.11 (NOTE FOR ALL AI ASSISTANTS: Bump this version number by +0.01 whenever you edit or update this application) -->
+<!-- VERSION_TRACKER: v1.12 (NOTE FOR ALL AI ASSISTANTS: Bump this version number by +0.01 whenever you edit or update this application) -->
 <div class="wrap" id="app"></div>
 <div class="topbar" id="topbar"><span id="tbt">Today</span></div>
 <div class="tabs" id="tabs"><i class="pill" id="pill"></i><button id="tb-today" onclick="setTab('today')"><svg viewBox="0 0 24 24"><path d="M8.5 14.5A2.5 2.5 0 0 0 11 17c1.38 0 2.5-1.12 2.5-2.5 0-1.99-.99-3-1.5-4-.5 1-1.5 1.5-2 1.5-.83 0-1.5-.67-1.5-1.5 0-1.5 1.5-3 2.5-4C8.5 8 5 11 5 15a7 7 0 1 0 14 0c0-5.25-4.5-9-6.5-12.5-1.5 3.5-4 8-4 12z"/></svg>Today</button><button id="tb-cal" onclick="setTab('cal')"><svg viewBox="0 0 24 24"><rect width="18" height="18" x="3" y="4" rx="3"/><path d="M3 10h18"/><path d="M8 2v4"/><path d="M16 2v4"/></svg>Calendar</button><button id="tb-gym" onclick="setTab('gym')"><svg viewBox="0 0 24 24"><path d="m6.5 6.5 11 11"/><path d="m21 21-1-1a2 2 0 0 0-2.83 0l-1.17 1.17a2 2 0 0 1-2.83 0l-3.17-3.17a2 2 0 0 1 0-2.83l1.17-1.17a2 2 0 0 0 0-2.83L11 8"/><path d="m3 3 1 1a2 2 0 0 0 2.83 0l1.17-1.17a2 2 0 0 1 2.83 0l3.17 3.17a2 2 0 0 1 0 2.83l-1.17 1.17a2 2 0 0 0 0 2.83L13 16"/></svg>Gym</button></div>
@@ -767,7 +767,7 @@ input:focus, textarea:focus {
 var GOAL={c:2000,p:100,cb:275,f:56};
 var TZ='Europe/Zagreb';
 function today(){return new Intl.DateTimeFormat('en-CA',{timeZone:TZ}).format(new Date())}
-var S={pw:{},sample:null,lim:null,pre:null,scan:{blob:null,url:'',txt:'',busy:false,res:null,err:'',ctl:null},tab:'today',view:today(),cal:today().slice(0,7),months:{},meals:[],goals:GOAL,sheet:null,db:null,uid:null,gym:{},gymOpen:{},includeBurned:true};
+var S={pw:{},sample:null,lim:null,pre:null,scan:{blob:null,url:'',txt:'',busy:false,res:null,err:'',ctl:null},tab:'today',view:today(),cal:today().slice(0,7),months:{},meals:[],goals:GOAL,sheet:null,db:null,uid:null,gym:{},gymOpen:{},includeBurned:(function(){try{var v=localStorage.getItem('cal_include_burned');return v===null?true:v==='1'}catch(e){return true}})()};
 var GYM=[
  {d:'Monday',t:'Push',ex:[['Incline bench press','2 × 8',10],['Chest press','2 × 8-12',50],['Chest flies','2 × 8',15],['Shoulder press','2 × 8',22.5],['Lateral raise','2 × 8',10],['Reverse pec deck (one arm)','2 × failure',10],['Triceps pushdown','2 × 8',40],['Jam press (smith)','2 × failure',10],['Single arm triceps pushdown','2 × failure',25]]},
  {d:'Tuesday',t:'Pull',ex:[['Lat pulldown','2 × 8',55],['Close grip row (one arm)','2 × 8',45],['Kelson shrug','2 × failure',20],['Preacher curl','2 × 8',7.5],['Hammer curl','2 × failure',10],['V-ups','3 × 15',null],['Twisted leg raises','3 × 10-15',null]]},
@@ -829,14 +829,17 @@ function getBurned(date){
 }
 function toggleBurnedCal(){
   S.includeBurned = !S.includeBurned;
+  try { localStorage.setItem('cal_include_burned', S.includeBurned ? '1' : '0'); } catch(e){}
   render();
 }
 function summary(date){
-  var list=dayList(date),t=tot(list),g=S.goals,left=g.c-t.c,C=439.8,over=left<0,pc=Math.min(100,t.c/g.c*100),k='r'+(bi++);
+  var list=dayList(date),t=tot(list),g=S.goals,burned=getBurned(date);
+  var isCalNet = (S.tab === 'cal' && S.includeBurned);
+  var effCal = isCalNet ? Math.max(0, t.c - burned) : t.c;
+  var left=g.c-effCal,C=439.8,over=left<0,pc=Math.min(100,effCal/g.c*100),k='r'+(bi++);
   var st=S.pw[k]!=null?S.pw[k]:C;
   var ringSvg='<svg class="ring" viewBox="0 0 176 176"><circle class="rt" cx="88" cy="88" r="70"/><circle class="rp" data-k="'+k+'" data-o="'+(C*(1-pc/100))+'" cx="88" cy="88" r="70" transform="rotate(-90 88 88)" stroke-dasharray="'+C+'" style="stroke-dashoffset:'+st+';stroke:'+(over?'#ff453a':'var(--acc)')+'"/></svg>';
   function mc(n,v,goal,col){return '<div class="mc"><div class="n"><i style="background:'+col+'"></i>'+n+'</div><div class="v">'+r(v)+'<small> / '+goal+'g</small></div>'+barI(Math.min(100,goal?v/goal*100:0),col)+'</div>'}
-  var burned = getBurned(date);
   var burnedGoal = 600; // Apple Fitness standard active kcal target
   var bPc = Math.min(100, burned ? (burned / burnedGoal * 100) : 0);
   var bk = 'rb' + (bi++);
@@ -862,7 +865,7 @@ function render(){
     h='<div class="sub">'+fmtDate(today())+'</div><h1>Today</h1>';
     h+='<div class="goals-edit"><span>Goal: '+g.c+' kcal · P '+g.p+'g · C '+g.cb+'g · F '+g.f+'g</span><button onclick="openGoals()">Edit</button></div>';
     h+=summary(today());
-    h+='<div class="today-version">Tracker v1.11</div>';
+    h+='<div class="today-version">Tracker v1.12</div>';
     h+='<button class="fab" onclick="openSheet()" aria-label="Add meal"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></button>';
   }else if(S.tab==='gym'){
     h='<h1 style="margin-top:14px">Gym</h1><div class="sub" style="margin:0 0 12px">Weekly workout plan</div>';
@@ -1106,9 +1109,11 @@ function calorieChartHtml(){
     var ym = ds.slice(0, 7);
     var mData = S.months[ym] || {};
     var list = mData[ds] || [];
-    var cal = list.length ? tot(list).c : 0;
+    var rawCal = list.length ? tot(list).c : 0;
+    var b = getBurned(ds);
+    var cal = S.includeBurned ? Math.max(0, rawCal - b) : rawCal;
     
-    if (cal > 0) {
+    if (rawCal > 0 || (S.includeBurned && b > 0)) {
       totalC += cal;
       loggedCount++;
       if (cal * 1.15 > maxC) maxC = cal * 1.15;
@@ -1177,7 +1182,7 @@ function calorieChartHtml(){
   return '<div class="card" style="margin-top:14px;padding:16px 14px 12px">' +
     '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">' +
       '<div>' +
-        '<div style="font-size:11px;font-weight:700;color:var(--mut);text-transform:uppercase;letter-spacing:0.5px">Calorie Trend (Newest &larr;)</div>' +
+        '<div style="font-size:11px;font-weight:700;color:var(--mut);text-transform:uppercase;letter-spacing:0.5px">' + (S.includeBurned ? 'Net Calorie Trend (Newest &larr;)' : 'Calorie Trend (Newest &larr;)') + '</div>' +
         '<div style="font-size:20px;font-weight:800;color:#ffffff;margin-top:2px">' +
           avg + ' <small style="font-size:12px;font-weight:600;color:rgba(255,69,58,0.9)">avg kcal</small>' +
         '</div>' +
@@ -1211,13 +1216,16 @@ function statsHtml(){
   var mData = S.months[S.cal] || {}, g = S.goals;
   var td = today(), tDate = new Date(td + 'T12:00:00');
   
-  // 1. Mjesečne kalorije i limit
+  // 1. Mjesečne kalorije i limit (s podrškom za odbijanje potrošenih kalorija)
   var y = +S.cal.slice(0, 4), mo = +S.cal.slice(5, 7);
   var dim = new Date(y, mo, 0).getDate();
-  var monthTotal = 0;
+  var monthTotal = 0, monthBurned = 0;
   for (var d = 1; d <= dim; d++) {
     var ds = S.cal + '-' + (d < 10 ? '0' : '') + d;
-    if (mData[ds]) monthTotal += tot(mData[ds]).c;
+    var dayEaten = mData[ds] ? tot(mData[ds]).c : 0;
+    var dayBurned = getBurned(ds);
+    monthBurned += dayBurned;
+    monthTotal += S.includeBurned ? Math.max(0, dayEaten - dayBurned) : dayEaten;
   }
   var monthTarget = dim * g.c;
 
@@ -1226,14 +1234,17 @@ function statsHtml(){
   var weekStart = new Date(tDate);
   weekStart.setDate(tDate.getDate() - dow);
   
-  var weekTotal = 0;
+  var weekTotal = 0, weekBurned = 0;
   for (var wi = 0; wi < 7; wi++) {
     var wd = new Date(weekStart);
     wd.setDate(weekStart.getDate() + wi);
     var wds = wd.toISOString().slice(0, 10);
     var wm = wds.slice(0, 7);
     var wData = (S.months[wm] || {})[wds];
-    if (wData) weekTotal += tot(wData).c;
+    var dayEaten = wData ? tot(wData).c : 0;
+    var dayBurned = getBurned(wds);
+    weekBurned += dayBurned;
+    weekTotal += S.includeBurned ? Math.max(0, dayEaten - dayBurned) : dayEaten;
   }
   var weekTarget = 7 * g.c;
 
@@ -1248,10 +1259,12 @@ function statsHtml(){
     '</div>';
   }
 
-  return '<div class="sec">Statistics</div>' +
+  var wSub = S.includeBurned && weekBurned > 0 ? ('7-day target · ' + Math.round(weekBurned) + ' burned') : '7-day target';
+  var mSub = S.includeBurned && monthBurned > 0 ? (dim + '-day target · ' + Math.round(monthBurned) + ' burned') : (dim + '-day target');
+  return '<div class="sec">Statistics' + (S.includeBurned ? ' <span style="font-size:11px;font-weight:400;color:var(--mut)">(Net intake)</span>' : ' <span style="font-size:11px;font-weight:400;color:var(--mut)">(Food only)</span>') + '</div>' +
     '<div class="stats-grid">' +
-      sc('This week', weekTotal, weekTarget, '7-day target') +
-      sc('This month', monthTotal, monthTarget, dim + '-day target') +
+      sc(S.includeBurned ? 'This week (Net)' : 'This week', weekTotal, weekTarget, wSub) +
+      sc(S.includeBurned ? 'This month (Net)' : 'This month', monthTotal, monthTarget, mSub) +
     '</div>';
 }
 
@@ -1281,7 +1294,7 @@ var last=today();
 setInterval(function(){var t=today();if(t!==last){last=t;S.view=t;S.cal=t.slice(0,7);loadAll().then(function(){if(!S.sheet)render()})}},20000);
 document.addEventListener('visibilitychange',function(){if(!document.hidden){var t=today();last=t;loadAll().then(function(){if(!S.sheet)render()})}});
 /* Auto-update checker: detektira noviju verziju na Vercelu i osvjezava PWA */
-var CURRENT_VERSION = 'v1.10';
+var CURRENT_VERSION = 'v1.12';
 async function checkForAppUpdates(){
   try {
     var res = await fetch('/macros.html?_check=' + Date.now(), { cache: 'no-store' });
