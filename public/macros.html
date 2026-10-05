@@ -758,7 +758,7 @@ input:focus, textarea:focus {
 </style>
 </head>
 <body>
-<!-- VERSION_TRACKER: v1.13 (NOTE FOR ALL AI ASSISTANTS: Bump this version number by +0.01 whenever you edit or update this application) -->
+<!-- VERSION_TRACKER: v1.14 (NOTE FOR ALL AI ASSISTANTS: Bump this version number by +0.01 whenever you edit or update this application) -->
 <div class="wrap" id="app"></div>
 <div class="topbar" id="topbar"><span id="tbt">Today</span></div>
 <div class="tabs" id="tabs"><i class="pill" id="pill"></i><button id="tb-today" onclick="setTab('today')"><svg viewBox="0 0 24 24"><path d="M8.5 14.5A2.5 2.5 0 0 0 11 17c1.38 0 2.5-1.12 2.5-2.5 0-1.99-.99-3-1.5-4-.5 1-1.5 1.5-2 1.5-.83 0-1.5-.67-1.5-1.5 0-1.5 1.5-3 2.5-4C8.5 8 5 11 5 15a7 7 0 1 0 14 0c0-5.25-4.5-9-6.5-12.5-1.5 3.5-4 8-4 12z"/></svg>Today</button><button id="tb-cal" onclick="setTab('cal')"><svg viewBox="0 0 24 24"><rect width="18" height="18" x="3" y="4" rx="3"/><path d="M3 10h18"/><path d="M8 2v4"/><path d="M16 2v4"/></svg>Calendar</button><button id="tb-gym" onclick="setTab('gym')"><svg viewBox="0 0 24 24"><path d="m6.5 6.5 11 11"/><path d="m21 21-1-1a2 2 0 0 0-2.83 0l-1.17 1.17a2 2 0 0 1-2.83 0l-3.17-3.17a2 2 0 0 1 0-2.83l1.17-1.17a2 2 0 0 0 0-2.83L11 8"/><path d="m3 3 1 1a2 2 0 0 0 2.83 0l1.17-1.17a2 2 0 0 1 2.83 0l3.17 3.17a2 2 0 0 1 0 2.83l-1.17 1.17a2 2 0 0 0 0 2.83L13 16"/></svg>Gym</button></div>
@@ -865,7 +865,7 @@ function render(){
     h='<div class="sub">'+fmtDate(today())+'</div><h1>Today</h1>';
     h+='<div class="goals-edit"><span>Goal: '+g.c+' kcal · P '+g.p+'g · C '+g.cb+'g · F '+g.f+'g</span><button onclick="openGoals()">Edit</button></div>';
     h+=summary(today());
-    h+='<div class="today-version">Tracker v1.13</div>';
+    h+='<div class="today-version">Tracker v1.14</div>';
     h+='<button class="fab" onclick="openSheet()" aria-label="Add meal"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></button>';
   }else if(S.tab==='gym'){
     var dow=new Date().getDay(); // 0 Sun, 1 Mon ... 5 Fri, 6 Sat
@@ -1209,43 +1209,86 @@ function setChartRange(r){
 }
 
 function calorieChartHtml(){
-  var range = S.chartRange || 'week'; // 'week' (7 days) or 'month' (30 days)
-  var numDays = range === 'week' ? 7 : 30;
+  var range = S.chartRange || 'week'; // 'week' (tekući tjedan pon-ned) or 'month' (tekući mjesec 1-dim)
   var g = S.goals;
   var td = today(), tDate = new Date(td + 'T12:00:00');
   
-  // Build days list with newest date on the LEFT (idx 0 = today, idx 1 = yesterday, ...)
   var days = [];
   var totalC = 0, loggedCount = 0;
   var maxC = Math.max(g.c * 1.3, 3500);
 
-  for (var i = 0; i < numDays; i++) {
-    var d = new Date(tDate);
-    d.setDate(tDate.getDate() - i);
-    var ds = d.toISOString().slice(0, 10);
-    var ym = ds.slice(0, 7);
-    var mData = S.months[ym] || {};
-    var list = mData[ds] || [];
-    var rawCal = list.length ? tot(list).c : 0;
-    var b = getBurned(ds);
-    var cal = S.includeBurned ? Math.max(0, rawCal - b) : rawCal;
-    
-    if (rawCal > 0 || (S.includeBurned && b > 0)) {
-      totalC += cal;
-      loggedCount++;
-      if (cal * 1.15 > maxC) maxC = cal * 1.15;
+  if (range === 'week') {
+    // Tekući tjedan: počinje u ponedjeljak i resetira se svaki tjedan
+    var dow = (tDate.getDay() + 6) % 7; // 0 = Ponedjeljak
+    var weekStart = new Date(tDate);
+    weekStart.setDate(tDate.getDate() - dow);
+    var weekLabels = ['Mo','Tu','We','Th','Fr','Sa','Su'];
+
+    for (var wi = 0; wi < 7; wi++) {
+      var wd = new Date(weekStart);
+      wd.setDate(weekStart.getDate() + wi);
+      var wds = wd.toISOString().slice(0, 10);
+      var ym = wds.slice(0, 7);
+      var mData = S.months[ym] || {};
+      var list = mData[wds] || [];
+      var rawCal = list.length ? tot(list).c : 0;
+      var b = getBurned(wds);
+      var cal = S.includeBurned ? Math.max(0, rawCal - b) : rawCal;
+      var hasData = rawCal > 0 || (S.includeBurned && b > 0);
+      var isFuture = wds > td;
+
+      if (hasData) {
+        totalC += cal;
+        loggedCount++;
+        if (cal * 1.15 > maxC) maxC = cal * 1.15;
+      }
+
+      days.push({
+        date: wds,
+        dayNum: wd.getDate(),
+        label: weekLabels[wi],
+        cal: cal,
+        hasData: hasData,
+        isFuture: isFuture
+      });
     }
-    
-    var dayLabel = (d.getMonth() + 1) + '/' + d.getDate();
-    var weekday = ['Su','Mo','Tu','We','Th','Fr','Sa'][d.getDay()];
-    days.push({ date: ds, dayNum: d.getDate(), label: range === 'week' ? weekday : dayLabel, cal: cal });
+  } else {
+    // Tekući mjesec: počinje od 1. u mjesecu do kraja mjeseca
+    var y = +S.cal.slice(0, 4), mo = +S.cal.slice(5, 7);
+    var dim = new Date(y, mo, 0).getDate();
+    var mData = S.months[S.cal] || {};
+
+    for (var d = 1; d <= dim; d++) {
+      var ds = S.cal + '-' + (d < 10 ? '0' : '') + d;
+      var list = mData[ds] || [];
+      var rawCal = list.length ? tot(list).c : 0;
+      var b = getBurned(ds);
+      var cal = S.includeBurned ? Math.max(0, rawCal - b) : rawCal;
+      var hasData = rawCal > 0 || (S.includeBurned && b > 0);
+      var isFuture = ds > td;
+
+      if (hasData) {
+        totalC += cal;
+        loggedCount++;
+        if (cal * 1.15 > maxC) maxC = cal * 1.15;
+      }
+
+      days.push({
+        date: ds,
+        dayNum: d,
+        label: '' + d,
+        cal: cal,
+        hasData: hasData,
+        isFuture: isFuture
+      });
+    }
   }
 
-  // Average calculated across the displayed graph
+  var numDays = days.length;
   var avg = loggedCount > 0 ? Math.round(totalC / loggedCount) : 0;
   if (avg * 1.15 > maxC) maxC = avg * 1.15;
 
-  var svgW = range === 'week' ? 340 : Math.max(340, numDays * 16 + 50);
+  var svgW = range === 'week' ? 340 : Math.max(340, numDays * 14 + 50);
   var svgH = 175;
   var padL = 40, padR = 18, padT = 24, padB = 30;
   var chartW = svgW - padL - padR;
@@ -1259,54 +1302,63 @@ function calorieChartHtml(){
   var goalY = getY(g.c);
   var avgY = avg > 0 ? getY(avg) : null;
 
-  // Calculate coordinates for points (newest on the left: i = 0 is left)
-  var points = [];
   var stepX = numDays > 1 ? chartW / (numDays - 1) : chartW;
-  
+  var points = [];
+  var activePoints = [];
+
   days.forEach(function(item, idx){
     var x = padL + idx * stepX;
     var y = getY(item.cal);
-    points.push({ x: x, y: y, item: item, idx: idx });
+    var p = { x: x, y: y, item: item, idx: idx };
+    points.push(p);
+    if (item.hasData || (!item.isFuture && range === 'week')) {
+      activePoints.push(p);
+    }
   });
 
-  // Polyline points (pravci)
-  var linePointsStr = points.map(function(p){ return p.x.toFixed(1) + ',' + p.y.toFixed(1); }).join(' ');
+  var linePointsStr = activePoints.map(function(p){ return p.x.toFixed(1) + ',' + p.y.toFixed(1); }).join(' ');
 
-  // Dots & interactions
   var dotsSvg = '';
   points.forEach(function(p){
     var isSel = p.item.date === S.view;
     var isToday = p.item.date === today();
-    var col = p.item.cal > 0 ? 'var(--acc)' : 'rgba(255,255,255,0.25)';
-    var r = isSel ? 6 : (range === 'week' ? 4.5 : 3.5);
+    var hasVal = p.item.hasData;
+    var col = hasVal ? 'var(--acc)' : 'rgba(255,255,255,0.2)';
+    var r = isSel ? 6 : (range === 'week' ? 4.5 : 3);
     
-    dotsSvg += '<g class="cpt" onclick="pickDay(\'' + p.item.date + '\')" style="cursor:pointer">';
+    dotsSvg += '<g class="cpt" onclick="pickDay('' + p.item.date + '')" style="cursor:pointer">';
     dotsSvg += '<circle cx="' + p.x.toFixed(1) + '" cy="' + p.y.toFixed(1) + '" r="' + (r + 7) + '" fill="transparent" />';
-    dotsSvg += '<circle cx="' + p.x.toFixed(1) + '" cy="' + p.y.toFixed(1) + '" r="' + r + '" fill="' + (isSel ? '#ffffff' : col) + '" stroke="#000000" stroke-width="2" />';
     
-    // Value text for weekly view or when selected
-    if ((range === 'week' && p.item.cal > 0) || isSel) {
+    if (hasVal || !p.item.isFuture) {
+      dotsSvg += '<circle cx="' + p.x.toFixed(1) + '" cy="' + p.y.toFixed(1) + '" r="' + r + '" fill="' + (isSel ? '#ffffff' : col) + '" stroke="#000000" stroke-width="2" />';
+    } else {
+      dotsSvg += '<circle cx="' + p.x.toFixed(1) + '" cy="' + (padT + chartH) + '" r="2" fill="rgba(255,255,255,0.15)" />';
+    }
+    
+    if ((range === 'week' && hasVal) || (isSel && hasVal)) {
       dotsSvg += '<text x="' + p.x.toFixed(1) + '" y="' + (p.y - 8).toFixed(1) + '" font-size="9" font-weight="700" fill="' + (isSel ? '#ffffff' : 'var(--acc)') + '" text-anchor="middle">' + Math.round(p.item.cal) + '</text>';
     }
     
-    // Bottom X-axis label
-    if (range === 'week' || p.idx % 5 === 0 || p.idx === numDays - 1 || isSel) {
+    var showLabel = range === 'week' || p.item.dayNum === 1 || p.item.dayNum % 5 === 0 || p.item.dayNum === numDays || isSel;
+    if (showLabel) {
       dotsSvg += '<text x="' + p.x.toFixed(1) + '" y="' + (svgH - 8) + '" font-size="9" font-weight="' + (isSel || isToday ? '700' : '500') + '" fill="' + (isSel ? '#ffffff' : isToday ? 'var(--acc)' : '#8e8e93') + '" text-anchor="middle">' + p.item.label + '</text>';
     }
     dotsSvg += '</g>';
   });
 
+  var titleText = S.includeBurned ? 'Net Calorie Trend' : 'Calorie Trend';
+
   return '<div class="card" style="margin-top:14px;padding:16px 14px 12px">' +
     '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">' +
       '<div>' +
-        '<div style="font-size:11px;font-weight:700;color:var(--mut);text-transform:uppercase;letter-spacing:0.5px">' + (S.includeBurned ? 'Net Calorie Trend (Newest &larr;)' : 'Calorie Trend (Newest &larr;)') + '</div>' +
+        '<div style="font-size:11px;font-weight:700;color:var(--mut);text-transform:uppercase;letter-spacing:0.5px">' + titleText + '</div>' +
         '<div style="font-size:20px;font-weight:800;color:#ffffff;margin-top:2px">' +
           avg + ' <small style="font-size:12px;font-weight:600;color:rgba(255,69,58,0.9)">avg kcal</small>' +
         '</div>' +
       '</div>' +
       '<div style="display:flex;background:#2c2c2e;border-radius:10px;padding:2px">' +
-        '<button onclick="setChartRange(\'week\')" style="border:0;background:' + (range === 'week' ? '#3a3a3c' : 'none') + ';color:' + (range === 'week' ? '#fff' : 'var(--mut)') + ';font-size:12px;font-weight:600;padding:5px 10px;border-radius:8px;cursor:pointer">Week</button>' +
-        '<button onclick="setChartRange(\'month\')" style="border:0;background:' + (range === 'month' ? '#3a3a3c' : 'none') + ';color:' + (range === 'month' ? '#fff' : 'var(--mut)') + ';font-size:12px;font-weight:600;padding:5px 10px;border-radius:8px;cursor:pointer">Month</button>' +
+        '<button onclick="setChartRange('week')" style="border:0;background:' + (range === 'week' ? '#3a3a3c' : 'none') + ';color:' + (range === 'week' ? '#fff' : 'var(--mut)') + ';font-size:12px;font-weight:600;padding:5px 10px;border-radius:8px;cursor:pointer">Week</button>' +
+        '<button onclick="setChartRange('month')" style="border:0;background:' + (range === 'month' ? '#3a3a3c' : 'none') + ';color:' + (range === 'month' ? '#fff' : 'var(--mut)') + ';font-size:12px;font-weight:600;padding:5px 10px;border-radius:8px;cursor:pointer">Month</button>' +
       '</div>' +
     '</div>' +
     '<div style="overflow-x:auto;-webkit-overflow-scrolling:touch">' +
@@ -1321,8 +1373,10 @@ function calorieChartHtml(){
           '<line x1="' + padL + '" y1="' + avgY.toFixed(1) + '" x2="' + (svgW - padR) + '" y2="' + avgY.toFixed(1) + '" stroke="rgba(255, 69, 58, 0.55)" stroke-width="2"/>' +
           '<text x="' + (svgW - padR) + '" y="' + (avgY - 4).toFixed(1) + '" font-size="9" font-weight="700" fill="rgba(255, 69, 58, 0.9)" text-anchor="end">Avg ' + avg + '</text>'
         ) : '') +
-        '<!-- Green Line connecting points (pravci) -->' +
-        '<polyline fill="none" stroke="var(--acc)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" points="' + linePointsStr + '"/>' +
+        (activePoints.length > 1 ? (
+          '<!-- Green Line connecting points (pravci) -->' +
+          '<polyline fill="none" stroke="var(--acc)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" points="' + linePointsStr + '"/>'
+        ) : '') +
         dotsSvg +
       '</svg>' +
     '</div>' +
@@ -1411,7 +1465,7 @@ var last=today();
 setInterval(function(){var t=today();if(t!==last){last=t;S.view=t;S.cal=t.slice(0,7);loadAll().then(function(){if(!S.sheet)render()})}},20000);
 document.addEventListener('visibilitychange',function(){if(!document.hidden){var t=today();last=t;loadAll().then(function(){if(!S.sheet)render()})}});
 /* Auto-update checker: detektira noviju verziju na Vercelu i osvjezava PWA */
-var CURRENT_VERSION = 'v1.13';
+var CURRENT_VERSION = 'v1.14';
 async function checkForAppUpdates(){
   try {
     var res = await fetch('/macros.html?_check=' + Date.now(), { cache: 'no-store' });
